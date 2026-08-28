@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --paper:#F6F7F5;
+    --card:#FFFFFF;
+    --ink:#1F2933;
+    --ink-soft:#52606D;
+    --ink-faint:#8A94A0;
+    --line:#DDE2E6;
+    --line-soft:#EAEDEF;
+    --brand:#2F6F5E;
+    --brand-dark:#204E42;
+    --brand-tint:#E4F0EC;
+    --done:#2F9E7C;
+    --overdue:#D64550;
+    --duesoon:#C9861A;
+    --inprogress:#4C5FD6;
+    --notstarted:#9AA5B1;
+    --radius:10px;
+    --shadow-tab: 0 2px 0 rgba(0,0,0,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:920px;margin:0 auto;padding:16px 20px 80px;}
+
+  .masthead-compact{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+  .masthead-compact h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:21px;
+    margin:0;
+    line-height:1.15;
+    letter-spacing:-0.01em;
+  }
+  .masthead-meta{font-size:11px;color:var(--ink-soft);margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+
+  .masthead{margin-bottom:20px;}
+  .masthead h1{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:0;letter-spacing:-0.01em;}
+  .masthead .sub{font-size:13px;color:var(--ink-soft);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+
+  .controls-bar{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .mini-stats{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow-x:auto;}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+  .controls-expanded{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:12px;margin-bottom:14px;}
+  .controls-expanded .filters{margin-bottom:12px;}
+  .controls-expanded .sort-row{margin-bottom:0;}
+
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+  .btn{
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--ink);
+    padding:9px 14px;
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:transform .08s ease, background .15s ease;
+  }
+  .btn:hover{background:var(--line-soft);}
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .btn-primary:hover{background:var(--brand-dark);}
+  .btn-ghost{border-color:transparent;background:transparent;color:var(--ink-soft);}
+  .btn-ghost:hover{background:var(--line-soft);}
+  .btn-danger-text{border:none;background:none;color:var(--overdue);font-size:12px;font-weight:600;padding:4px 6px;}
+
+  /* Binder tabs */
+  .tabs{display:flex;gap:0;overflow-x:auto;padding:0 0 0 2px;margin-bottom:10px;}
+  .tab{
+    position:relative;
+    border:none;
+    padding:8px 18px 7px;
+    margin-left:-10px;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:13.5px;
+    color:var(--ink-soft);
+    background:#E9ECEC;
+    clip-path:polygon(10% 0, 90% 0, 100% 100%, 0% 100%);
+    white-space:nowrap;
+    z-index:1;
+    transition:transform .12s ease;
+  }
+  .tab:first-child{margin-left:0;}
+  .tab:hover{transform:translateY(-2px);}
+  .tab.active{
+    background:var(--tab-color, var(--brand));
+    color:#fff;
+    z-index:5;
+    transform:translateY(-3px);
+    box-shadow:var(--shadow-tab);
+  }
+  .tab.add-tab{
+    background:transparent;
+    border:1.5px dashed var(--line);
+    clip-path:none;
+    border-radius:8px;
+    color:var(--ink-faint);
+    margin-left:6px;
+    padding:8px 14px;
+  }
+  .tab.add-tab:hover{color:var(--ink);border-color:var(--ink-faint);}
+  .tab-dot{display:none;}
+
+  /* Top-level segmented tabs (Tasks / Manage) */
+  .top-tabs{display:inline-flex;background:var(--line-soft);border-radius:9px;padding:3px;margin-bottom:18px;}
+  .top-tab{border:none;background:transparent;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:700;color:var(--ink-soft);font-family:'Inter',sans-serif;}
+  .top-tab.active{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+
+  /* Sort / view row */
+  .sort-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .sort-row select{min-width:170px;}
+  .sort-level-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+  .sort-level-row select{flex:1;}
+  .manage-pane{max-width:640px;}
+
+  /* Reports */
+  .report-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  @media (min-width:520px){ .report-stats{grid-template-columns:repeat(4,1fr);} }
+  .report-stat{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:12px 8px;text-align:center;}
+  .report-stat .num{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:var(--brand);}
+  .report-stat .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
+  .report-card{background:var(--card);border:1px solid var(--line-soft);border-radius:12px;padding:16px;margin-bottom:14px;max-width:640px;}
+  .report-card h3{font-family:'Fraunces',serif;font-weight:600;font-size:15.5px;margin:0 0 13px;}
+  .report-empty{font-size:12.5px;color:var(--ink-faint);}
+
+  .hbar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .hbar-row:last-child{margin-bottom:0;}
+  .hbar-label{width:92px;flex-shrink:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hbar-track{flex:1;height:9px;background:var(--line-soft);border-radius:5px;overflow:hidden;}
+  .hbar-fill{height:100%;border-radius:5px;}
+  .hbar-value{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);width:30px;text-align:right;flex-shrink:0;}
+
+  .report-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .report-table th{text-align:left;font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;padding:0 8px 7px 0;border-bottom:1px solid var(--line-soft);}
+  .report-table td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line-soft);font-family:'IBM Plex Mono',monospace;}
+  .report-table td:first-child{font-family:'Inter',sans-serif;font-weight:700;}
+  .report-table tr:last-child td{border-bottom:none;}
+
+  .vbar-chart{display:flex;align-items:flex-end;gap:6px;height:120px;}
+  .vbar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .vbar{width:100%;max-width:26px;background:var(--brand);border-radius:4px 4px 0 0;min-height:3px;}
+  .vbar-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);margin-bottom:3px;}
+  .vbar-label{font-size:9px;color:var(--ink-faint);margin-top:5px;white-space:nowrap;}
+
+  .gran-row{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .gran-btn{border:1px solid var(--line);background:var(--paper);padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;color:var(--ink-soft);font-family:'Inter',sans-serif;}
+  .gran-btn.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .period-group{margin-bottom:22px;}
+  .period-group:last-child{margin-bottom:0;}
+  .period-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;}
+  .period-title{font-family:'Fraunces',serif;font-weight:600;font-size:14px;}
+  .period-count{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
+  .period-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .period-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;border:1.5px solid;background:#fff;white-space:nowrap;}
+  .report-note{font-size:11px;color:var(--ink-faint);margin-top:10px;}
+
+  /* Filters */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center;}
+  select, input[type=text], input[type=date], textarea{
+    font-family:'Inter',sans-serif;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:7px 10px;
+    font-size:13px;
+    color:var(--ink);
+    background:var(--card);
+  }
+  select{cursor:pointer;}
+  .filters select{min-width:120px;}
+
+  /* Task list */
+  .task-list{display:flex;flex-direction:column;gap:8px;}
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--ink-soft);
+    background:var(--card);
+    border:1px dashed var(--line);
+    border-radius:var(--radius);
+  }
+  .empty h3{font-family:'Fraunces',serif;font-weight:600;color:var(--ink);margin:0 0 6px;}
+
+  .task{
+    background:var(--card);
+    border:1px solid var(--line-soft);
+    border-left:4px solid var(--status-color, var(--notstarted));
+    border-radius:8px;
+    padding:12px 14px;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+  }
+  .task.done{opacity:0.68;}
+  .task-check{
+    width:20px;height:20px;border-radius:50%;
+    border:2px solid var(--status-color, var(--notstarted));
+    flex-shrink:0;margin-top:2px;background:none;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--status-color, var(--notstarted));
+    font-size:12px;font-weight:700;
+    padding:0;
+  }
+  .task.done .task-check{background:var(--status-color);color:#fff;}
+  .task-body{flex:1;min-width:0;}
+  .task-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;}
+  .task-title{font-size:14.5px;font-weight:600;}
+  .task.done .task-title{text-decoration:line-through;}
+  .task-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center;}
+  .pill{
+    font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+    white-space:nowrap;
+  }
+  .pill-child{font-weight:700;background-color:#fff;}
+  .pill-subject{color:#fff;}
+  .pill-platform{background:transparent;font-weight:700;}
+  .pill-type{font-weight:700;}
+  .pill-type-recurring{background:#E7ECFD;color:#3355D8;}
+  .pill-type-adhoc{background:#FDF0DA;color:#B5730A;}
+  .pill-deadline{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .deadline-overdue{background:#FBE4E5;color:var(--overdue);}
+  .deadline-soon{background:#FAEBD3;color:var(--duesoon);}
+  .deadline-ok{background:var(--line-soft);color:var(--ink-soft);}
+
+  .type-swatch{width:16px;height:16px;border-radius:3px;display:inline-block;vertical-align:-3px;margin-right:6px;flex-shrink:0;}
+  .type-swatch.solid{background:var(--sw-color);}
+  .type-swatch.outline{background:#fff;border:2px solid var(--sw-color);}
+  .type-swatch.stripe{background-image:repeating-linear-gradient(45deg, var(--sw-color) 0 3px, #fff 3px 6px);border:1px solid var(--sw-color);}
+
+  .manage-key{font-size:12px;color:var(--ink-soft);margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;}
+  .manage-key span{display:flex;align-items:center;}
+  .manage-section{margin-bottom:20px;}
+  .manage-section h3{font-family:'Fraunces',serif;font-size:15px;margin:0 0 8px;}
+  .manage-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .manage-chip{display:flex;align-items:center;font-size:12.5px;font-weight:600;padding:5px 6px 5px 8px;border-radius:20px;background:var(--paper);border:1px solid var(--line-soft);}
+  .manage-chip button{background:none;border:none;color:var(--ink-faint);margin-left:6px;font-size:12px;padding:0 2px;line-height:1;}
+  .manage-chip button:hover{color:var(--overdue);}
+  .manage-add-row{display:flex;gap:6px;}
+  .manage-add-row input{flex:1;}
+
+  .progress-row{display:flex;align-items:center;gap:8px;margin-top:9px;}
+  .progress-track{flex:1;height:7px;background:var(--line-soft);border-radius:6px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--status-color, var(--brand));border-radius:6px;transition:width .2s ease;}
+  input[type=range].pct-input{flex:1;height:16px;accent-color:var(--brand);}
+  .pct-label{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;min-width:34px;text-align:right;}
+
+  .task-actions{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0;}
+  .icon-btn{background:none;border:none;color:var(--ink-faint);font-size:15px;padding:2px 4px;}
+  .icon-btn:hover{color:var(--ink);}
+
+  /* Modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(31,41,51,0.35);
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;z-index:50;
+  }
+  .modal{
+    background:var(--card);border-radius:14px;padding:22px 24px;
+    width:100%;max-width:440px;max-height:90vh;overflow-y:auto;
+  }
+  .modal h2{font-family:'Fraunces',serif;font-size:19px;margin:0 0 16px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+  .field input, .field select, .field textarea{width:100%;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .radio-group{display:flex;gap:14px;margin-top:2px;}
+  .radio-group label{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;color:var(--ink);}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .swatch-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+  .swatch{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
+  .swatch.selected{border-color:var(--ink);}
+
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:9px 16px;border-radius:8px;
+    font-size:13px;z-index:100;opacity:0;transition:opacity .2s ease;
+  }
+  .toast.show{opacity:1;}
+
+  .loading{text-align:center;padding:60px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+
+  /* Onboarding */
+  .onboard{max-width:420px;margin:60px auto;padding:0 20px;}
+  .onboard h1{font-family:'Fraunces',serif;font-size:26px;margin:0 0 6px;}
+  .onboard p{color:var(--ink-soft);font-size:14px;line-height:1.5;margin:0 0 20px;}
+  .onboard-card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:22px;margin-bottom:14px;}
+  .onboard-card h3{font-family:'Fraunces',serif;font-size:16px;margin:0 0 10px;}
+  .onboard input{width:100%;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:.15em;text-transform:uppercase;padding:10px;margin-bottom:10px;}
+  .onboard-divider{text-align:center;font-size:11px;color:var(--ink-faint);margin:14px 0;text-transform:uppercase;letter-spacing:.05em;}
+  .code-display{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;letter-spacing:.1em;text-align:center;background:var(--brand-tint);color:var(--brand-dark);border-radius:10px;padding:16px;margin-bottom:12px;}
+  .profile-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .profile-btn{flex:1;min-width:120px;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:16px 10px;text-align:center;font-family:'Fraunces',serif;font-weight:600;font-size:15px;}
+  .profile-btn:active{transform:scale(0.97);}
+  .profile-switcher{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);background:none;border:none;padding:4px 0;text-decoration:underline;}
+  .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--done);margin-right:5px;vertical-align:1px;}
+  .sync-dot.offline{background:var(--overdue);}
+  .status-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+
+  @media (max-width:600px){
+    .stamps{grid-template-columns:repeat(3,1fr);}
+    .stamp:nth-child(4), .stamp:nth-child(5){display:none;}
+    .task-top{flex-direction:column;align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading the ledger…</div></div>
+
+<script>
+(function(){
+  // ============================================================
+  // FIREBASE SETUP — replace with your own project's config.
+  // See README.md for step-by-step Firebase + GitHub Pages setup.
+  // ============================================================
+  var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDorVBmmT0A_GMBkoUYMOws7ySAUs4OGls",
+  authDomain: "study-ledger-d84a2.firebaseapp.com",
+  projectId: "study-ledger-d84a2",
+  storageBucket: "study-ledger-d84a2.firebasestorage.app",
+  messagingSenderId: "1096956020972",
+  appId: "1:1096956020972:web:be84ee3e3076049777bdc9"
+};
+  var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid mix-ups
+
+  var CHILD_COLORS = ['#4C6EF5','#E8590C','#AE3EC9','#2F9E44','#1098AD','#F08C00','#D6336C','#495057'];
+  var SUBJECT_SOLID = ['#3355D8','#C24A0F','#8C2FB0','#227A3E','#0D7A8C','#B5730A','#C2185B','#495057'];
+  var PLATFORM_OUTLINE = ['#2F6F5E','#1971C2','#862E9C','#B5730A','#495057'];
+  var DEFAULT_PLATFORMS = ['School','Tuition','Home revision'];
+  var RECUR_OPTIONS = ['Daily','Weekly','Fortnightly','Monthly','Term'];
+  var SORT_FIELDS = {
+    status:   {label:'Status',       type:'status'},
+    deadline: {label:'Deadline',     type:'date'},
+    percent:  {label:'Percent done', type:'number'},
+    child:    {label:'Child',        type:'string'},
+    subject:  {label:'Subject',      type:'string'},
+    platform: {label:'Platform',     type:'string'},
+    type:     {label:'Type',         type:'string'}
+  };
+  var STATUS_META = {
+    done:       {color:'var(--done)',       label:'Done'},
+    overdue:    {color:'var(--overdue)',    label:'Overdue'},
+    dueSoon:    {color:'var(--duesoon)',    label:'Due soon'},
+    inProgress: {color:'var(--inprogress)', label:'In progress'},
+    notStarted: {color:'var(--notstarted)', label:'Not started'}
+  };
+  var STATUS_ORDER = ['overdue','dueSoon','inProgress','notStarted','done'];
+
+  var state = {children:[], tasks:[]};
+  var filters = {child:'All', subject:'', platform:'', type:'', status:''};
+  var editingId = null;
+  var activeTab = 'tasks';
+  var controlsExpanded = false;
+  var historyFilterChild = 'All';
+  var reportGranularity = 'weekly';
+
+  // Sync / profile state
+  var db = null;
+  var familyCode = localStorage.getItem('ledger-family-code') || null;
+  var profile = null; // {type:'parent'} or {type:'child', name:'Aagaaz'}
+  try { profile = JSON.parse(localStorage.getItem('ledger-profile') || 'null'); } catch(e){ profile = null; }
+  if(profile && profile.type==='parent'){
+    activeTab = 'reports';
+  } else if(profile && profile.type==='child'){
+    activeTab = 'tasks';
+    filters.child = profile.name;
+  }
+  var isSyncing = false;
+  var unsubscribeSnapshot = null;
+
+  function hashStr(s){
+    var h = 0;
+    for (var i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+    return h;
+  }
+  function paletteColor(name, list, palette){
+    var idx = list.indexOf(name);
+    if(idx < 0) idx = hashStr(name);
+    return palette[idx % palette.length];
+  }
+  function childColor(name){ return paletteColor(name, state.children, CHILD_COLORS); }
+  function subjectColor(name){ return paletteColor(name, state.subjects, SUBJECT_SOLID); }
+  function platformColor(name){ return paletteColor(name, state.platforms, PLATFORM_OUTLINE); }
+  function hexToRgba(hex, alpha){
+    hex = hex.replace('#','');
+    var r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+    return 'rgba('+r+','+g+','+b+','+alpha+')';
+  }
+  function uid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  // ---- Firebase / family sync ----
+  function isFirebaseConfigured(){
+    return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('YOUR_') !== 0;
+  }
+
+  function initFirebase(){
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    return firebase.auth().signInAnonymously();
+  }
+
+  function genFamilyCode(){
+    var code = '';
+    for(var i=0;i<6;i++) code += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+    return code;
+  }
+
+  function familyDocRef(){
+    return db.collection('families').doc(familyCode);
+  }
+
+  function setSyncIndicator(online){
+    var dot = document.getElementById('sync-dot');
+    if(dot) dot.className = 'sync-dot' + (online ? '' : ' offline');
+  }
+
+  // Subscribes to the family doc in real time. Calls render() whenever data changes,
+  // including changes made from other devices (e.g. a child's phone).
+  function subscribeToFamily(){
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    unsubscribeSnapshot = familyDocRef().onSnapshot(function(doc){
+      if(doc.exists){
+        state = migrateState(doc.data());
+      } else {
+        state = defaultState();
+        familyDocRef().set(state).catch(function(){});
+      }
+      setSyncIndicator(true);
+      render();
+    }, function(err){
+      console.error(err);
+      setSyncIndicator(false);
+      showToast("Can't reach the server — changes will retry when back online.");
+    });
+  }
+
+  function defaultState(){
+    var viewId = uid();
+    return {
+      children:[], subjects:[], platforms: DEFAULT_PLATFORMS.slice(), tasks:[], history:[],
+      views:[{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}],
+      activeViewId: viewId
+    };
+  }
+
+  function migrateState(s){
+    s = s || {};
+    s.children = s.children || [];
+    s.subjects = s.subjects || [];
+    s.platforms = (s.platforms && s.platforms.length) ? s.platforms : DEFAULT_PLATFORMS.slice();
+    s.tasks = s.tasks || [];
+    s.history = s.history || [];
+    if(!s.views || !s.views.length){
+      var viewId = uid();
+      s.views = [{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}];
+      s.activeViewId = viewId;
+    }
+    if(!s.activeViewId || !s.views.some(function(v){ return v.id===s.activeViewId; })){
+      s.activeViewId = s.views[0].id;
+    }
+    return s;
+  }
+
+  async function saveState(){
+    if(!db || !familyCode) return;
+    try{
+      await familyDocRef().set(state);
+      setSyncIndicator(true);
+    }catch(e){
+      setSyncIndicator(false);
+      showToast("Couldn't save — check your connection.");
+    }
+  }
+
+  function openPromptModal(title, placeholder, onSubmit){
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:340px;">' +
+        '<h2>'+escapeHtml(title)+'</h2>' +
+        '<div class="field"><input type="text" id="p-input" placeholder="'+escapeHtml(placeholder)+'"></div>' +
+        '<div class="field" id="p-error" style="display:none;color:var(--overdue);font-size:12px;"></div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="p-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="p-save">Add</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector('#p-input');
+    input.focus();
+    function submit(){
+      var val = input.value.trim();
+      if(!val){
+        var err = overlay.querySelector('#p-error');
+        err.textContent = 'Enter a name first.';
+        err.style.display = 'block';
+        return;
+      }
+      overlay.remove();
+      onSubmit(val);
+    }
+    overlay.querySelector('#p-cancel').onclick = function(){ overlay.remove(); };
+    overlay.querySelector('#p-save').onclick = submit;
+    input.onkeydown = function(e){ if(e.key==='Enter') submit(); };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  }
+
+  function openConfirmModal(message, confirmLabel, onConfirm){
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:340px;">' +
+        '<h2>Are you sure?</h2>' +
+        '<p style="font-size:13.5px;color:var(--ink-soft);margin:0 0 4px;">'+escapeHtml(message)+'</p>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="c-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="c-confirm" style="background:var(--overdue);border-color:var(--overdue);">'+escapeHtml(confirmLabel)+'</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#c-cancel').onclick = function(){ overlay.remove(); };
+    overlay.querySelector('#c-confirm').onclick = function(){ overlay.remove(); onConfirm(); };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  }
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    if(!t){
+      t = document.createElement('div');
+      t.id='toast'; t.className='toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+  }
+
+  function todayStr(){
+    var d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function nextDeadline(dateStr, freq){
+    var d = new Date(dateStr+'T00:00:00');
+    switch(freq){
+      case 'Daily': d.setDate(d.getDate()+1); break;
+      case 'Weekly': d.setDate(d.getDate()+7); break;
+      case 'Fortnightly': d.setDate(d.getDate()+14); break;
+      case 'Monthly': d.setMonth(d.getMonth()+1); break;
+      case 'Term': d.setDate(d.getDate()+70); break; // approx. 10-week school term
+      default: d.setDate(d.getDate()+7);
+    }
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function logCompletion(t){
+    state.history.unshift({
+      id: uid(),
+      taskId: t.id,
+      title: t.title,
+      child: t.child,
+      subject: t.subject,
+      platform: t.platform,
+      type: t.type,
+      recurrence: t.recurrence || null,
+      deadline: t.deadline || null,
+      completedAt: Date.now()
+    });
+    if(state.history.length > 500) state.history = state.history.slice(0, 500);
+  }
+
+  function handleCompletion(t){
+    if(t.percent < 100) return;
+    logCompletion(t);
+    if(t.type==='Recurring' && t.deadline){
+      var newDeadline = nextDeadline(t.deadline, t.recurrence || 'Weekly');
+      t.deadline = newDeadline;
+      t.percent = 0;
+      showToast('"'+t.title+'" repeats — next due '+formatDeadline(newDeadline));
+    }
+  }
+
+  function getStatus(task){
+    if (task.percent >= 100) return 'done';
+    if (!task.deadline) return task.percent > 0 ? 'inProgress' : 'notStarted';
+    var today = new Date(todayStr()+'T00:00:00');
+    var dl = new Date(task.deadline+'T00:00:00');
+    var diffDays = Math.round((dl-today)/86400000);
+    if (diffDays < 0) return 'overdue';
+    if (diffDays <= 3) return 'dueSoon';
+    return task.percent > 0 ? 'inProgress' : 'notStarted';
+  }
+
+  function getActiveView(){
+    var v = state.views.filter(function(v){ return v.id === state.activeViewId; })[0];
+    return v || state.views[0];
+  }
+
+  function getFieldValue(t, field){
+    switch(field){
+      case 'status': return STATUS_ORDER.indexOf(getStatus(t));
+      case 'deadline': return t.deadline || null;
+      case 'percent': return t.percent;
+      case 'child': return (t.child||'').toLowerCase();
+      case 'subject': return (t.subject||'').toLowerCase();
+      case 'platform': return (t.platform||'').toLowerCase();
+      case 'type': return (t.type||'').toLowerCase();
+    }
+  }
+
+  function compareValues(va, vb, type, dir){
+    var cmp;
+    if(type==='date'){
+      if(va===null && vb===null) cmp=0;
+      else if(va===null) cmp=1;
+      else if(vb===null) cmp=-1;
+      else cmp = va<vb ? -1 : (va>vb ? 1 : 0);
+    } else if(type==='number' || type==='status'){
+      cmp = va - vb;
+    } else {
+      cmp = va<vb ? -1 : (va>vb ? 1 : 0);
+    }
+    return dir==='desc' ? -cmp : cmp;
+  }
+
+  function sortTasks(list, levels){
+    list.sort(function(a,b){
+      for(var i=0;i<levels.length;i++){
+        var lvl = levels[i];
+        var f = SORT_FIELDS[lvl.field];
+        if(!f) continue;
+        var cmp = compareValues(getFieldValue(a, lvl.field), getFieldValue(b, lvl.field), f.type, lvl.dir);
+        if(cmp !== 0) return cmp;
+      }
+      return 0;
+    });
+    return list;
+  }
+
+  function formatDeadline(dstr){
+    if(!dstr) return null;
+    var d = new Date(dstr+'T00:00:00');
+    return d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
+  }
+
+  function escapeHtml(s){
+    var div = document.createElement('div');
+    div.textContent = s == null ? '' : s;
+    return div.innerHTML;
+  }
+
+  function render(){
+    var app = document.getElementById('app');
+
+    if(!isFirebaseConfigured()){
+      app.innerHTML = renderSetupRequired();
+      return;
+    }
+    if(!familyCode){
+      app.innerHTML = renderFamilyCodeScreen();
+      bindFamilyCodeScreen();
+      return;
+    }
+    if(!profile){
+      app.innerHTML = renderProfilePickerScreen();
+      bindProfilePickerScreen();
+      return;
+    }
+
+    var screenHtml;
+    if(activeTab==='tasks') screenHtml = renderTasksScreen();
+    else if(activeTab==='history') screenHtml = renderHistoryPane();
+    else if(activeTab==='reports') screenHtml = renderReportsPane();
+    else screenHtml = renderManagePane();
+    app.innerHTML = renderStatusBar() + renderTopTabs() + screenHtml;
+    setSyncIndicator(true);
+
+    document.getElementById('btn-switch-profile').onclick = function(){
+      profile = null;
+      localStorage.removeItem('ledger-profile');
+      render();
+    };
+    document.querySelectorAll('[data-top-tab]').forEach(function(el){
+      el.onclick = function(){ activeTab = el.getAttribute('data-top-tab'); render(); };
+    });
+
+    if(activeTab==='tasks'){
+      document.getElementById('btn-new').onclick = function(){ openModal(null); };
+      document.getElementById('btn-toggle-controls').onclick = function(){ controlsExpanded = !controlsExpanded; render(); };
+      bindTabEvents();
+      if(controlsExpanded){
+        bindFilterEvents();
+        bindSortRowEvents();
+      }
+      bindTaskEvents();
+    } else if(activeTab==='manage'){
+      document.getElementById('btn-reset').onclick = onResetClick;
+      document.getElementById('btn-leave-family').onclick = onLeaveFamilyClick;
+      document.getElementById('btn-copy-code').onclick = function(){
+        navigator.clipboard.writeText(familyCode).then(function(){ showToast('Family code copied.'); }).catch(function(){});
+      };
+      bindManageEvents(document);
+    } else if(activeTab==='history'){
+      bindHistoryEvents();
+    } else if(activeTab==='reports'){
+      bindReportsEvents();
+    }
+  }
+
+  function renderStatusBar(){
+    var who = profile.type==='parent' ? 'Parent view' : profile.name;
+    return '<div class="status-bar"><span><span class="sync-dot" id="sync-dot"></span>Family '+familyCode+'</span>' +
+      '<button class="profile-switcher" id="btn-switch-profile">'+escapeHtml(who)+' · Switch</button></div>';
+  }
+
+  function renderSetupRequired(){
+    return '<div class="onboard">' +
+      '<h1>Setup needed</h1>' +
+      '<p>This app needs a Firebase project connected before it can store anything. Open <code>index.html</code>, find the <code>FIREBASE_CONFIG</code> block near the top of the script, and paste in your project\'s config values. Full steps are in <strong>README.md</strong>.</p>' +
+      '</div>';
+  }
+
+  function renderFamilyCodeScreen(){
+    return '<div class="onboard">' +
+      '<h1>Study ledger</h1>' +
+      '<p>One shared ledger the whole family can reach from any device.</p>' +
+      '<div class="onboard-card"><h3>Join a family</h3>' +
+        '<input type="text" id="join-code-input" maxlength="6" placeholder="ABC123">' +
+        '<button class="btn btn-primary" id="btn-join-family" style="width:100%;">Join</button>' +
+      '</div>' +
+      '<div class="onboard-divider">or</div>' +
+      '<div class="onboard-card"><h3>Start a new family</h3>' +
+        '<p style="margin-bottom:12px;">Creates a fresh code — you\'ll enter it on everyone else\'s device to join the same ledger.</p>' +
+        '<button class="btn btn-primary" id="btn-create-family" style="width:100%;">Create new family</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindFamilyCodeScreen(){
+    document.getElementById('btn-join-family').onclick = function(){
+      var val = document.getElementById('join-code-input').value.trim().toUpperCase();
+      if(!val){ showToast('Enter a family code first.'); return; }
+      familyCode = val;
+      localStorage.setItem('ledger-family-code', familyCode);
+      document.getElementById('app').innerHTML = '<div class="loading">Connecting…</div>';
+      subscribeToFamily();
+    };
+    document.getElementById('btn-create-family').onclick = function(){
+      familyCode = genFamilyCode();
+      localStorage.setItem('ledger-family-code', familyCode);
+      document.getElementById('app').innerHTML = '<div class="loading">Setting things up…</div>';
+      subscribeToFamily();
+    };
+  }
+
+  function renderProfilePickerScreen(){
+    var childButtons = state.children.map(function(c){
+      return '<button class="profile-btn" data-profile-child="'+escapeHtml(c)+'" style="border-color:'+childColor(c)+';color:'+childColor(c)+';">'+escapeHtml(c)+'</button>';
+    }).join('');
+    return '<div class="onboard">' +
+      '<h1>Who\'s using this?</h1>' +
+      '<p>Pick a name so this device shows the right view by default — you can switch anytime from the header.</p>' +
+      '<div class="onboard-card"><div class="profile-grid">' +
+        childButtons +
+        '<button class="profile-btn" data-profile-parent="1" style="border-color:var(--ink);color:var(--ink);">Parent / Guardian</button>' +
+      '</div>' +
+      (state.children.length===0 ? '<p style="font-size:12px;color:var(--ink-faint);margin:12px 0 0;">No children added yet — continue as Parent, then add them under Manage.</p>' : '') +
+      '</div>' +
+      '<div class="onboard-divider">Family code: '+familyCode+'</div>' +
+    '</div>';
+  }
+
+  function bindProfilePickerScreen(){
+    document.querySelectorAll('[data-profile-child]').forEach(function(btn){
+      btn.onclick = function(){
+        profile = {type:'child', name: btn.getAttribute('data-profile-child')};
+        localStorage.setItem('ledger-profile', JSON.stringify(profile));
+        activeTab = 'tasks';
+        filters.child = profile.name;
+        render();
+      };
+    });
+    var parentBtn = document.querySelector('[data-profile-parent]');
+    if(parentBtn) parentBtn.onclick = function(){
+      profile = {type:'parent'};
+      localStorage.setItem('ledger-profile', JSON.stringify(profile));
+      activeTab = 'reports';
+      render();
+    };
+  }
+
+  function onLeaveFamilyClick(){
+    openConfirmModal('This disconnects the device from family "'+familyCode+'". You can rejoin any time with the code.', 'Leave family', function(){
+      if(unsubscribeSnapshot) unsubscribeSnapshot();
+      localStorage.removeItem('ledger-family-code');
+      localStorage.removeItem('ledger-profile');
+      familyCode = null;
+      profile = null;
+      render();
+    });
+  }
+
+  function renderTopTabs(){
+    return '<div class="top-tabs">' +
+      '<button class="top-tab '+(activeTab==='tasks'?'active':'')+'" data-top-tab="tasks">Tasks</button>' +
+      '<button class="top-tab '+(activeTab==='history'?'active':'')+'" data-top-tab="history">History</button>' +
+      '<button class="top-tab '+(activeTab==='reports'?'active':'')+'" data-top-tab="reports">Reports</button>' +
+      '<button class="top-tab '+(activeTab==='manage'?'active':'')+'" data-top-tab="manage">Manage</button>' +
+      '</div>';
+  }
+
+  function renderTasksScreen(){
+    var subjects = uniqueSubjects();
+    return '<div class="masthead-compact">' +
+        '<div><h1>Study ledger</h1><div class="masthead-meta">' + state.tasks.length + ' tasks · ' + state.children.length + ' ' + (state.children.length===1?'child':'children') + '</div></div>' +
+        '<button class="btn btn-primary" id="btn-new">+ New task</button>' +
+      '</div>' +
+      renderTabs() +
+      renderControlsBar() +
+      (controlsExpanded ? '<div class="controls-expanded">' + renderFilters(subjects) + renderSortRow() + '</div>' : '') +
+      renderTaskList();
+  }
+
+  function renderControlsBar(){
+    var scoped = tasksForChildScope();
+    var counts = {overdue:0, dueSoon:0, inProgress:0, done:0};
+    var pctSum=0;
+    scoped.forEach(function(t){
+      var s = getStatus(t);
+      if(counts[s]!==undefined) counts[s]++;
+      pctSum += t.percent;
+    });
+    var avg = scoped.length ? Math.round(pctSum/scoped.length) : 0;
+    return '<div class="controls-bar">' +
+      '<button class="btn btn-ghost btn-sm" id="btn-toggle-controls">'+(controlsExpanded ? 'Hide filters ▲' : 'Filters & sort ▾')+'</button>' +
+      '<span class="mini-stats">'+counts.overdue+' late · '+counts.dueSoon+' soon · '+counts.inProgress+' active · '+counts.done+' done · '+avg+'% avg</span>' +
+      '</div>';
+  }
+
+  function uniqueSubjects(){
+    var set = {};
+    state.subjects.forEach(function(s){ set[s]=true; });
+    state.tasks.forEach(function(t){ if(t.subject) set[t.subject]=true; });
+    return Object.keys(set).sort();
+  }
+
+  function renderTabs(){
+    var html = '<div class="tabs" id="tabs">';
+    html += '<button class="tab ' + (filters.child==='All'?'active':'') + '" data-child="All" style="--tab-color:#1F2933">All</button>';
+    state.children.forEach(function(c){
+      html += '<button class="tab ' + (filters.child===c?'active':'') + '" data-child="' + escapeHtml(c) + '" style="--tab-color:' + childColor(c) + '">' + escapeHtml(c) + '</button>';
+    });
+    html += '<button class="tab add-tab" id="tab-add">+ Add child</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function bindTabEvents(){
+    document.querySelectorAll('#tabs .tab[data-child]').forEach(function(el){
+      el.onclick = function(){ filters.child = el.getAttribute('data-child'); render(); };
+    });
+    document.getElementById('tab-add').onclick = function(){
+      openPromptModal("Add a child", "Child's name", function(name){
+        if(state.children.indexOf(name)===-1){
+          state.children.push(name);
+          filters.child = name;
+          saveState();
+        }
+        render();
+      });
+    };
+  }
+
+  function tasksForChildScope(){
+    if (filters.child==='All') return state.tasks;
+    return state.tasks.filter(function(t){ return t.child===filters.child; });
+  }
+
+  function renderFilters(subjects){
+    var html = '<div class="filters">';
+    html += selectHtml('f-subject','All subjects', subjects, filters.subject);
+    html += selectHtml('f-platform','All platforms', state.platforms, filters.platform);
+    html += selectHtml('f-type','All types', ['Recurring','Adhoc'], filters.type);
+    html += selectHtml('f-status','All statuses', STATUS_ORDER.map(function(k){return STATUS_META[k].label;}), filters.status);
+    html += '</div>';
+    return html;
+  }
+  function selectHtml(id, allLabel, options, current){
+    var html = '<select id="'+id+'"><option value="">'+allLabel+'</option>';
+    options.forEach(function(o){
+      html += '<option value="'+escapeHtml(o)+'" '+(current===o?'selected':'')+'>'+escapeHtml(o)+'</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+  function bindFilterEvents(){
+    document.getElementById('f-subject').onchange = function(e){ filters.subject=e.target.value; render(); };
+    document.getElementById('f-platform').onchange = function(e){ filters.platform=e.target.value; render(); };
+    document.getElementById('f-type').onchange = function(e){ filters.type=e.target.value; render(); };
+    document.getElementById('f-status').onchange = function(e){ filters.status=e.target.value; render(); };
+  }
+
+  function statusLabelToKey(label){
+    for(var k in STATUS_META){ if(STATUS_META[k].label===label) return k; }
+    return null;
+  }
+
+  function filteredTasks(){
+    var list = tasksForChildScope().filter(function(t){
+      if (filters.subject && t.subject !== filters.subject) return false;
+      if (filters.platform && t.platform !== filters.platform) return false;
+      if (filters.type && t.type !== filters.type) return false;
+      if (filters.status){
+        var key = statusLabelToKey(filters.status);
+        if (getStatus(t) !== key) return false;
+      }
+      return true;
+    });
+    return sortTasks(list, getActiveView().levels);
+  }
+
+  function renderSortRow(){
+    var view = getActiveView();
+    return '<div class="sort-row">' +
+      '<label style="font-size:12px;color:var(--ink-soft);font-weight:600;">View</label>' +
+      '<select id="view-select">' +
+        state.views.map(function(v){ return '<option value="'+v.id+'" '+(v.id===view.id?'selected':'')+'>'+escapeHtml(v.name)+'</option>'; }).join('') +
+        '<option value="__new__">+ New view…</option>' +
+      '</select>' +
+      '<button class="btn btn-ghost" id="btn-edit-sort">Edit sort ⇅</button>' +
+      '</div>';
+  }
+
+  function bindSortRowEvents(){
+    document.getElementById('view-select').onchange = function(e){
+      if(e.target.value === '__new__'){
+        e.target.value = state.activeViewId;
+        openPromptModal('Name this view', 'e.g. By subject then deadline', function(name){
+          var v = {id: uid(), name: name, levels: [{field:'deadline', dir:'asc'}]};
+          state.views.push(v);
+          state.activeViewId = v.id;
+          saveState();
+          render();
+          openSortModal();
+        });
+      } else {
+        state.activeViewId = e.target.value;
+        saveState();
+        render();
+      }
+    };
+    document.getElementById('btn-edit-sort').onclick = function(){ openSortModal(); };
+  }
+
+  function openSortModal(){
+    var view = getActiveView();
+    var tempName = view.name;
+    var tempLevels = view.levels.map(function(l){ return {field:l.field, dir:l.dir}; });
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+
+    function draw(){
+      overlay.innerHTML =
+        '<div class="modal" style="max-width:420px;">' +
+          '<h2>Sort &amp; views</h2>' +
+          '<div class="field"><label>View name</label><input type="text" id="sort-name" value="'+escapeHtml(tempName)+'"></div>' +
+          '<div class="field"><label>Sort by, in order of priority</label><div id="sort-levels">' +
+            tempLevels.map(function(l,i){ return sortLevelRow(l,i); }).join('') +
+          '</div>' +
+          (tempLevels.length < Object.keys(SORT_FIELDS).length ? '<button class="btn btn-ghost" id="sort-add-level" style="margin-top:2px;">+ Add level</button>' : '') +
+          '</div>' +
+          '<div class="modal-actions" style="justify-content:space-between;">' +
+            (state.views.length>1 ? '<button class="btn-danger-text" id="sort-delete">Delete view</button>' : '<span></span>') +
+            '<div style="display:flex;gap:8px;"><button class="btn btn-ghost" id="sort-cancel">Cancel</button><button class="btn btn-primary" id="sort-save">Save</button></div>' +
+          '</div>' +
+        '</div>';
+      bind();
+    }
+
+    function sortLevelRow(l,i){
+      return '<div class="sort-level-row" data-row="'+i+'">' +
+        '<span style="font-size:11px;color:var(--ink-faint);width:14px;">'+(i+1)+'.</span>' +
+        '<select data-level-field="'+i+'">' +
+          Object.keys(SORT_FIELDS).map(function(k){ return '<option value="'+k+'" '+(l.field===k?'selected':'')+'>'+SORT_FIELDS[k].label+'</option>'; }).join('') +
+        '</select>' +
+        '<button class="btn btn-ghost" data-level-dir="'+i+'" style="padding:6px 9px;white-space:nowrap;">'+(l.dir==='desc'?'↓ Desc':'↑ Asc')+'</button>' +
+        (tempLevels.length>1 ? '<button class="icon-btn" data-level-remove="'+i+'" title="Remove level">✕</button>' : '') +
+        '</div>';
+    }
+
+    function bind(){
+      overlay.querySelector('#sort-cancel').onclick = function(){ overlay.remove(); };
+      overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+      overlay.querySelector('#sort-name').oninput = function(e){ tempName = e.target.value; };
+      var addBtn = overlay.querySelector('#sort-add-level');
+      if(addBtn) addBtn.onclick = function(){
+        var used = tempLevels.map(function(l){ return l.field; });
+        var next = Object.keys(SORT_FIELDS).filter(function(k){ return used.indexOf(k)===-1; })[0] || 'percent';
+        tempLevels.push({field:next, dir:'asc'});
+        draw();
+      };
+      overlay.querySelectorAll('[data-level-field]').forEach(function(sel){
+        sel.onchange = function(){ tempLevels[parseInt(sel.getAttribute('data-level-field'),10)].field = sel.value; };
+      });
+      overlay.querySelectorAll('[data-level-dir]').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-level-dir'),10);
+          tempLevels[i].dir = tempLevels[i].dir==='desc' ? 'asc' : 'desc';
+          draw();
+        };
+      });
+      overlay.querySelectorAll('[data-level-remove]').forEach(function(btn){
+        btn.onclick = function(){
+          tempLevels.splice(parseInt(btn.getAttribute('data-level-remove'),10), 1);
+          draw();
+        };
+      });
+      var delBtn = overlay.querySelector('#sort-delete');
+      if(delBtn) delBtn.onclick = function(){
+        openConfirmModal('Delete the "'+view.name+'" view?', 'Delete view', function(){
+          state.views = state.views.filter(function(v){ return v.id !== view.id; });
+          if(state.activeViewId === view.id) state.activeViewId = state.views[0].id;
+          saveState();
+          overlay.remove();
+          render();
+        });
+      };
+      overlay.querySelector('#sort-save').onclick = function(){
+        view.name = overlay.querySelector('#sort-name').value.trim() || 'Untitled view';
+        view.levels = tempLevels.slice();
+        saveState();
+        overlay.remove();
+        render();
+      };
+    }
+    draw();
+  }
+
+  function renderTaskList(){
+    var list = filteredTasks();
+    if(list.length===0){
+      return '<div class="empty"><h3>Nothing here</h3>Add a task, or clear a filter to see more.</div>';
+    }
+    var html = '<div class="task-list">';
+    list.forEach(function(t){ html += renderTask(t); });
+    html += '</div>';
+    return html;
+  }
+
+  function renderTask(t){
+    var status = getStatus(t);
+    var meta = STATUS_META[status];
+    var childC = childColor(t.child);
+    var subColor = subjectColor(t.subject || 'General');
+    var platColor = platformColor(t.platform);
+    var deadlineClass = status==='overdue' ? 'deadline-overdue' : (status==='dueSoon' ? 'deadline-soon' : 'deadline-ok');
+    var deadlineText = t.deadline ? formatDeadline(t.deadline) : 'No deadline';
+    var typeLabel = t.type==='Recurring' ? ('↻ ' + (t.recurrence || 'Recurring')) : '• Adhoc';
+    return '<div class="task '+(status==='done'?'done':'')+'" style="--status-color:'+meta.color+'" data-id="'+t.id+'">' +
+      '<button class="task-check" data-action="toggle" data-id="'+t.id+'">'+(status==='done'?'✓':'')+'</button>' +
+      '<div class="task-body">' +
+        '<div class="task-top">' +
+          '<div class="task-title">'+escapeHtml(t.title)+'</div>' +
+        '</div>' +
+        '<div class="task-meta">' +
+          '<span class="pill pill-child" style="border:1.5px solid '+childC+';color:'+childC+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(childC,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(t.child)+'</span>' +
+          '<span class="pill pill-subject" style="background:'+subColor+'">'+escapeHtml(t.subject||'General')+'</span>' +
+          '<span class="pill pill-platform" style="border:1.5px solid '+platColor+';color:'+platColor+'">'+escapeHtml(t.platform)+'</span>' +
+          '<span class="pill pill-type '+(t.type==='Recurring'?'pill-type-recurring':'pill-type-adhoc')+'">'+typeLabel+'</span>' +
+          '<span class="pill pill-deadline '+deadlineClass+'">'+deadlineText+'</span>' +
+        '</div>' +
+        '<div class="progress-row">' +
+          '<input type="range" class="pct-input" min="0" max="100" step="5" value="'+t.percent+'" data-action="pct" data-id="'+t.id+'">' +
+          '<span class="pct-label">'+t.percent+'%</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="task-actions">' +
+        '<button class="icon-btn" data-action="edit" data-id="'+t.id+'" title="Edit">✎</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="'+t.id+'" title="Delete">✕</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindTaskEvents(){
+    document.querySelectorAll('[data-action="toggle"]').forEach(function(el){
+      el.onclick = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(!t) return;
+        t.percent = t.percent >= 100 ? (t._prev || 0) : (t._prev = t.percent, 100);
+        handleCompletion(t);
+        saveState(); render();
+      };
+    });
+    document.querySelectorAll('[data-action="pct"]').forEach(function(el){
+      el.oninput = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(!t) return;
+        t.percent = parseInt(el.target ? el.target.value : el.value, 10);
+        el.parentElement.querySelector('.pct-label').textContent = t.percent + '%';
+        var taskEl = el.closest('.task');
+        var status = getStatus(t);
+        taskEl.style.setProperty('--status-color', STATUS_META[status].color);
+        taskEl.classList.toggle('done', status==='done');
+      };
+      el.onchange = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(t) handleCompletion(t);
+        saveState(); render();
+      };
+    });
+    document.querySelectorAll('[data-action="edit"]').forEach(function(el){
+      el.onclick = function(){ openModal(el.getAttribute('data-id')); };
+    });
+    document.querySelectorAll('[data-action="delete"]').forEach(function(el){
+      el.onclick = function(){
+        var id = el.getAttribute('data-id');
+        openConfirmModal('This deletes the task for good.', 'Delete task', function(){
+          state.tasks = state.tasks.filter(function(t){ return t.id !== id; });
+          saveState(); render();
+        });
+      };
+    });
+  }
+
+  function findTask(id){
+    for(var i=0;i<state.tasks.length;i++) if(state.tasks[i].id===id) return state.tasks[i];
+    return null;
+  }
+
+  function onResetClick(){
+    openConfirmModal('This clears every child and task from the shared ledger for everyone in family '+familyCode+'.', 'Reset data', function(){
+      state = defaultState();
+      filters = {child:'All', subject:'', platform:'', type:'', status:''};
+      saveState();
+      render();
+    });
+  }
+
+  function renderManagePane(){
+    return '<div class="masthead"><div><h1>Manage lists</h1><div class="sub">Children, subjects &amp; platforms used across tasks</div></div></div>' +
+      '<div class="manage-pane">' +
+        '<div class="manage-section"><h3>Family code</h3>' +
+          '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;">Enter this on any other iPhone or Mac to join the same shared ledger.</p>' +
+          '<div class="code-display" style="max-width:220px;">'+familyCode+'</div>' +
+          '<button class="btn btn-ghost" id="btn-copy-code">Copy code</button>' +
+        '</div>' +
+        '<div class="manage-key">' +
+          '<span><span class="type-swatch solid" style="--sw-color:'+SUBJECT_SOLID[0]+'"></span>Subject — solid</span>' +
+          '<span><span class="type-swatch outline" style="--sw-color:'+PLATFORM_OUTLINE[0]+'"></span>Platform — outline</span>' +
+          '<span><span class="type-swatch stripe" style="--sw-color:'+CHILD_COLORS[0]+'"></span>Child — stripes</span>' +
+          '<span><span class="pill pill-type pill-type-recurring" style="padding:2px 7px;">↻</span>&nbsp;Recurring &nbsp;/&nbsp; <span class="pill pill-type pill-type-adhoc" style="padding:2px 7px;">•</span>&nbsp;Adhoc</span>' +
+        '</div>' +
+        manageSection('Children', 'child', state.children) +
+        manageSection('Subjects', 'subject', uniqueSubjects()) +
+        manageSection('Platforms', 'platform', state.platforms) +
+        '<div class="manage-section"><h3>Danger zone</h3>' +
+          '<button class="btn" id="btn-reset" style="color:var(--overdue);border-color:var(--overdue);margin-right:8px;">Reset all data</button>' +
+          '<button class="btn" id="btn-leave-family" style="color:var(--overdue);border-color:var(--overdue);">Leave this family</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function chipHtml(kind, name){
+    if(kind==='child'){
+      var c = childColor(name);
+      return '<span class="manage-chip" style="border:1.5px solid '+c+';color:'+c+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(c,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(name)+
+        '<button data-kind="child" data-name="'+escapeHtml(name)+'" title="Remove">✕</button></span>';
+    }
+    if(kind==='subject'){
+      var s = subjectColor(name);
+      return '<span class="manage-chip" style="background:'+s+';color:#fff;border-color:'+s+';">'+escapeHtml(name)+
+        '<button data-kind="subject" data-name="'+escapeHtml(name)+'" title="Remove" style="color:rgba(255,255,255,0.85);">✕</button></span>';
+    }
+    var p = platformColor(name);
+    return '<span class="manage-chip" style="border:1.5px solid '+p+';color:'+p+';">'+escapeHtml(name)+
+      '<button data-kind="platform" data-name="'+escapeHtml(name)+'" title="Remove">✕</button></span>';
+  }
+
+  function manageSection(title, kind, items){
+    var html = '<div class="manage-section"><h3>'+title+'</h3><div class="manage-list">';
+    if(items.length===0){
+      html += '<span style="font-size:12.5px;color:var(--ink-faint);">None yet</span>';
+    }
+    items.forEach(function(name){ html += chipHtml(kind, name); });
+    html += '</div><div class="manage-add-row"><input type="text" id="add-'+kind+'" placeholder="Add '+title.toLowerCase().replace(/s$/,'')+'…"><button class="btn" data-add="'+kind+'">Add</button></div></div>';
+    return html;
+  }
+
+  function bindManageEvents(root){
+    root.querySelectorAll('.manage-chip button').forEach(function(btn){
+      btn.onclick = function(){
+        var kind = btn.getAttribute('data-kind');
+        var name = btn.getAttribute('data-name');
+        openConfirmModal('Existing tasks that use "'+name+'" will keep it, but it will drop off this list.', 'Remove', function(){
+          if(kind==='child') state.children = state.children.filter(function(c){ return c!==name; });
+          if(kind==='subject') state.subjects = state.subjects.filter(function(s){ return s!==name; });
+          if(kind==='platform') state.platforms = state.platforms.filter(function(p){ return p!==name; });
+          saveState();
+          render();
+        });
+      };
+    });
+    root.querySelectorAll('[data-add]').forEach(function(btn){
+      btn.onclick = function(){
+        var kind = btn.getAttribute('data-add');
+        var input = root.querySelector('#add-'+kind);
+        var val = input.value.trim();
+        if(!val) return;
+        if(kind==='child' && state.children.indexOf(val)===-1) state.children.push(val);
+        if(kind==='subject' && state.subjects.indexOf(val)===-1) state.subjects.push(val);
+        if(kind==='platform' && state.platforms.indexOf(val)===-1) state.platforms.push(val);
+        saveState();
+        render();
+      };
+    });
+  }
+
+  // ---- History ----
+  function renderHistoryPane(){
+    var list = state.history.filter(function(h){ return historyFilterChild==='All' || h.child===historyFilterChild; });
+    return '<div class="masthead"><div><h1>History</h1><div class="sub">' + state.history.length + ' completions logged</div></div></div>' +
+      '<div class="filters" style="margin-bottom:16px;">' +
+        '<select id="history-child-filter">' +
+          '<option value="All" '+(historyFilterChild==='All'?'selected':'')+'>All children</option>' +
+          state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(historyFilterChild===c?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') +
+        '</select>' +
+        '<button class="btn btn-ghost" id="btn-clear-history">Clear history</button>' +
+      '</div>' +
+      (list.length===0
+        ? '<div class="empty"><h3>No completions yet</h3>Once tasks are ticked off, they\'ll show up here — including what the deadline was at the time.</div>'
+        : '<div class="task-list">' + list.map(renderHistoryRow).join('') + '</div>');
+  }
+
+  function renderHistoryRow(h){
+    var childC = childColor(h.child);
+    var subColor = subjectColor(h.subject || 'General');
+    var platColor = platformColor(h.platform);
+    var when = new Date(h.completedAt).toLocaleString('en-AU', {day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit'});
+    var deadlineText = h.deadline ? formatDeadline(h.deadline) : 'No deadline';
+    var typeLabel = h.type==='Recurring' ? ('↻ ' + (h.recurrence || 'Recurring')) : '• Adhoc';
+    return '<div class="task" style="--status-color:var(--done);">' +
+      '<span class="task-check" style="background:var(--done);color:#fff;border-color:var(--done);">✓</span>' +
+      '<div class="task-body">' +
+        '<div class="task-top"><div class="task-title">'+escapeHtml(h.title)+'</div><span style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--ink-soft);white-space:nowrap;">'+when+'</span></div>' +
+        '<div class="task-meta">' +
+          '<span class="pill pill-child" style="border:1.5px solid '+childC+';color:'+childC+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(childC,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(h.child)+'</span>' +
+          '<span class="pill pill-subject" style="background:'+subColor+'">'+escapeHtml(h.subject||'General')+'</span>' +
+          '<span class="pill pill-platform" style="border:1.5px solid '+platColor+';color:'+platColor+'">'+escapeHtml(h.platform)+'</span>' +
+          '<span class="pill pill-type '+(h.type==='Recurring'?'pill-type-recurring':'pill-type-adhoc')+'">'+typeLabel+'</span>' +
+          '<span class="pill pill-deadline deadline-ok">Due was '+deadlineText+'</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindHistoryEvents(){
+    var sel = document.getElementById('history-child-filter');
+    if(sel) sel.onchange = function(e){ historyFilterChild = e.target.value; render(); };
+    var clearBtn = document.getElementById('btn-clear-history');
+    if(clearBtn) clearBtn.onclick = function(){
+      openConfirmModal('This permanently deletes the completion history.', 'Clear history', function(){
+        state.history = [];
+        saveState();
+        render();
+      });
+    };
+  }
+
+  // ---- Reports ----
+  function computeOverview(){
+    var active = state.tasks;
+    var avgPct = active.length ? Math.round(active.reduce(function(s,t){ return s+t.percent; },0)/active.length) : 0;
+    var withDeadline = state.history.filter(function(h){ return h.deadline; });
+    var onTime = withDeadline.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
+    var onTimeRate = withDeadline.length ? Math.round(onTime/withDeadline.length*100) : null;
+    return { total: active.length, completions: state.history.length, avgPct: avgPct, onTimeRate: onTimeRate };
+  }
+
+  function computeChildTable(){
+    return state.children.map(function(child){
+      var childTasks = state.tasks.filter(function(t){ return t.child===child; });
+      var avgPct = childTasks.length ? Math.round(childTasks.reduce(function(s,t){ return s+t.percent; },0)/childTasks.length) : 0;
+      var hist = state.history.filter(function(h){ return h.child===child; });
+      var withDl = hist.filter(function(h){ return h.deadline; });
+      var onTime = withDl.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
+      var onTimeRate = withDl.length ? Math.round(onTime/withDl.length*100) : null;
+      return {child:child, active:childTasks.length, avgPct:avgPct, completions:hist.length, onTimeRate:onTimeRate};
+    });
+  }
+
+  function computeGroupStats(field, names, colorFn){
+    return names.map(function(name){
+      var count = state.history.filter(function(h){ return h[field]===name; }).length;
+      return {label:name, value:count, color:colorFn(name)};
+    }).filter(function(x){ return x.value>0; }).sort(function(a,b){ return b.value-a.value; });
+  }
+
+  function computeWeeklyActivity(){
+    var buckets = [];
+    var today = new Date(); today.setHours(0,0,0,0);
+    var day = today.getDay();
+    var diffToMonday = (day===0 ? -6 : 1-day);
+    var thisMonday = new Date(today); thisMonday.setDate(today.getDate()+diffToMonday);
+    for(var i=7;i>=0;i--){
+      var start = new Date(thisMonday); start.setDate(thisMonday.getDate() - i*7);
+      var end = new Date(start); end.setDate(start.getDate()+7);
+      var count = state.history.filter(function(h){ var d=new Date(h.completedAt); return d>=start && d<end; }).length;
+      buckets.push({label: start.toLocaleDateString('en-AU',{day:'numeric',month:'short'}), count: count});
+    }
+    return buckets;
+  }
+
+  function reportStatHtml(num, lbl){
+    return '<div class="report-stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>';
+  }
+
+  function renderHBarSection(title, items){
+    var max = Math.max.apply(null, items.map(function(i){ return i.value; }).concat([1]));
+    var rows = items.map(function(it){
+      var pct = Math.round((it.value/max)*100);
+      return '<div class="hbar-row">' +
+        '<div class="hbar-label">'+escapeHtml(it.label)+'</div>' +
+        '<div class="hbar-track"><div class="hbar-fill" style="width:'+pct+'%;background:'+it.color+';"></div></div>' +
+        '<div class="hbar-value">'+it.value+'</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="report-card"><h3>'+title+'</h3>' + (items.length ? rows : '<div class="report-empty">Not enough completions logged yet.</div>') + '</div>';
+  }
+
+  function renderWeeklyChart(){
+    var weekly = computeWeeklyActivity();
+    var max = Math.max.apply(null, weekly.map(function(w){ return w.count; }).concat([1]));
+    var cols = weekly.map(function(w){
+      var h = Math.max(3, Math.round((w.count/max)*90));
+      return '<div class="vbar-col"><div class="vbar-count">'+w.count+'</div><div class="vbar" style="height:'+h+'px;"></div><div class="vbar-label">'+w.label+'</div></div>';
+    }).join('');
+    return '<div class="report-card"><h3>Completions per week (last 8 weeks)</h3><div class="vbar-chart">'+cols+'</div></div>';
+  }
+
+  function renderChildTable(){
+    var rows = computeChildTable();
+    if(rows.length===0){
+      return '<div class="report-card"><h3>By child</h3><div class="report-empty">Add a child to see stats here.</div></div>';
+    }
+    var body = rows.map(function(r){
+      return '<tr><td style="color:'+childColor(r.child)+';">'+escapeHtml(r.child)+'</td>' +
+        '<td>'+r.active+'</td><td>'+r.avgPct+'%</td><td>'+r.completions+'</td><td>'+(r.onTimeRate===null?'—':r.onTimeRate+'%')+'</td></tr>';
+    }).join('');
+    return '<div class="report-card"><h3>By child</h3><table class="report-table">' +
+      '<thead><tr><th>Child</th><th>Active</th><th>Avg %</th><th>Completed</th><th>On-time</th></tr></thead>' +
+      '<tbody>'+body+'</tbody></table></div>';
+  }
+
+  function periodKeyAndLabel(timestamp, granularity){
+    var d = new Date(timestamp);
+    if(granularity==='daily'){
+      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var label = d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+      return {key:key, label:label};
+    }
+    if(granularity==='monthly'){
+      var key2 = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      return {key:key2, label: d.toLocaleDateString('en-AU', {month:'long', year:'numeric'})};
+    }
+    if(granularity==='yearly'){
+      return {key:String(d.getFullYear()), label:String(d.getFullYear())};
+    }
+    // weekly (default): bucket by the Monday of that week
+    var day = d.getDay();
+    var diffToMonday = (day===0 ? -6 : 1-day);
+    var monday = new Date(d); monday.setHours(0,0,0,0); monday.setDate(d.getDate()+diffToMonday);
+    var key3 = monday.getFullYear()+'-'+String(monday.getMonth()+1).padStart(2,'0')+'-'+String(monday.getDate()).padStart(2,'0');
+    return {key:key3, label:'Week of ' + monday.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})};
+  }
+
+  function groupHistoryByPeriod(granularity){
+    var groups = {};
+    state.history.forEach(function(h){
+      var pk = periodKeyAndLabel(h.completedAt, granularity);
+      if(!groups[pk.key]) groups[pk.key] = {label: pk.label, entries: []};
+      groups[pk.key].entries.push(h);
+    });
+    return Object.keys(groups).sort().reverse().map(function(k){ return groups[k]; });
+  }
+
+  function renderPeriodGroup(group){
+    var byChild = {};
+    group.entries.forEach(function(h){ byChild[h.child] = (byChild[h.child]||0)+1; });
+    var chipRow = Object.keys(byChild).map(function(c){
+      return '<span class="period-chip" style="color:'+childColor(c)+';border-color:'+childColor(c)+';">'+escapeHtml(c)+' · '+byChild[c]+'</span>';
+    }).join('');
+    var rows = group.entries.slice().sort(function(a,b){ return b.completedAt - a.completedAt; }).map(function(h){
+      var time = new Date(h.completedAt).toLocaleString('en-AU', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
+      return '<tr>' +
+        '<td style="color:'+childColor(h.child)+';">'+escapeHtml(h.child)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.subject||'General')+'</td>' +
+        '<td style="color:'+platformColor(h.platform)+';">'+escapeHtml(h.platform)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.title)+'</td>' +
+        '<td>'+time+'</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="period-group">' +
+      '<div class="period-header"><span class="period-title">'+escapeHtml(group.label)+'</span><span class="period-count">'+group.entries.length+' completed</span></div>' +
+      '<div class="period-chips">'+chipRow+'</div>' +
+      '<table class="report-table"><thead><tr><th>Child</th><th>Subject</th><th>Platform</th><th>Task</th><th>Completed</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div>';
+  }
+
+  function renderActivityLog(){
+    var allGroups = groupHistoryByPeriod(reportGranularity);
+    var groups = allGroups.slice(0, 12);
+    var granButtons = ['daily','weekly','monthly','yearly'].map(function(g){
+      return '<button class="gran-btn '+(reportGranularity===g?'active':'')+'" data-gran="'+g+'">'+g.charAt(0).toUpperCase()+g.slice(1)+'</button>';
+    }).join('');
+    var body = groups.length===0
+      ? '<div class="report-empty">No completions logged yet — this fills in as tasks get ticked off.</div>'
+      : groups.map(renderPeriodGroup).join('');
+    return '<div class="report-card" style="max-width:720px;">' +
+      '<h3>Activity log — who did what, where, and when</h3>' +
+      '<div class="gran-row">'+granButtons+'</div>' +
+      body +
+      (allGroups.length > groups.length ? '<div class="report-note">Showing the 12 most recent '+reportGranularity+' periods.</div>' : '') +
+    '</div>';
+  }
+
+  function bindReportsEvents(){
+    document.querySelectorAll('.gran-btn').forEach(function(btn){
+      btn.onclick = function(){ reportGranularity = btn.getAttribute('data-gran'); render(); };
+    });
+  }
+
+  function renderReportsPane(){
+    var overview = computeOverview();
+    return '<div class="masthead"><div><h1>Reports</h1><div class="sub">A snapshot of activity and progress</div></div></div>' +
+      '<div class="report-stats">' +
+        reportStatHtml(overview.total, 'Active tasks') +
+        reportStatHtml(overview.completions, 'Completions (all-time)') +
+        reportStatHtml(overview.avgPct+'%', 'Avg. done now') +
+        reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
+      '</div>' +
+      renderActivityLog() +
+      renderWeeklyChart() +
+      renderChildTable() +
+      renderHBarSection('Completions by subject', computeGroupStats('subject', uniqueSubjects(), subjectColor)) +
+      renderHBarSection('Completions by platform', computeGroupStats('platform', state.platforms, platformColor));
+  }
+
+  // ---- Modal ----
+  function openModal(id){
+    editingId = id;
+    var t = id ? findTask(id) : {title:'', child: state.children[0] || '', subject:'', platform:'School', type:'Adhoc', deadline:'', percent:0, notes:''};
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'overlay';
+    var subjects = uniqueSubjects();
+    overlay.innerHTML =
+      '<div class="modal">' +
+        '<h2>'+(id?'Edit task':'New task')+'</h2>' +
+        '<div class="field"><label>Title</label><input type="text" id="m-title" value="'+escapeHtml(t.title)+'" placeholder="e.g. Maths worksheet 4B"></div>' +
+        '<div class="field"><label>Child</label>' +
+          '<select id="m-child">' +
+            state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(t.child===c?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') +
+            '<option value="__new__">+ New child…</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field"><label>Subject</label>' +
+          '<select id="m-subject">' +
+            (subjects.length ? subjects.map(function(s){ return '<option value="'+escapeHtml(s)+'" '+(t.subject===s?'selected':'')+'>'+escapeHtml(s)+'</option>'; }).join('') : '') +
+            (t.subject && subjects.indexOf(t.subject)===-1 ? '<option value="'+escapeHtml(t.subject)+'" selected>'+escapeHtml(t.subject)+'</option>' : '') +
+            '<option value="__new__">+ New subject…</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Platform</label><select id="m-platform">' +
+            state.platforms.map(function(p){ return '<option value="'+escapeHtml(p)+'" '+(t.platform===p?'selected':'')+'>'+escapeHtml(p)+'</option>'; }).join('') +
+            '<option value="__new__">+ New platform…</option>' +
+          '</select></div>' +
+          '<div class="field"><label>Type</label>' +
+            '<div class="radio-group">' +
+              '<label><input type="radio" name="m-type" value="Adhoc" '+(t.type==='Adhoc'?'checked':'')+'> Adhoc</label>' +
+              '<label><input type="radio" name="m-type" value="Recurring" '+(t.type==='Recurring'?'checked':'')+'> Recurring</label>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="field" id="field-recurrence" style="display:'+(t.type==='Recurring'?'block':'none')+';"><label>Repeats</label><select id="m-recurrence">' +
+          RECUR_OPTIONS.map(function(r){ return '<option '+(t.recurrence===r?'selected':'')+'>'+r+'</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label id="label-deadline">'+(t.type==='Recurring'?'Deadline (required)':'Deadline (optional)')+'</label><input type="date" id="m-deadline" value="'+(t.deadline||'')+'"></div>' +
+          '<div class="field"><label>Percent done</label><input type="range" id="m-percent" min="0" max="100" step="5" value="'+t.percent+'"><div style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;margin-top:2px;" id="m-percent-out">'+t.percent+'%</div></div>' +
+        '</div>' +
+        '<div class="field"><label>Notes (optional)</label><textarea id="m-notes" rows="2" placeholder="Any extra detail">'+escapeHtml(t.notes||'')+'</textarea></div>' +
+        '<div id="m-error" style="display:none;color:var(--overdue);font-size:12px;margin-bottom:8px;"></div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="m-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="m-save">Save task</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('m-child').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        sel.value = state.children[0] || '__new__';
+        openPromptModal("Add a child", "Child's name", function(name){
+          if(state.children.indexOf(name)===-1) state.children.push(name);
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-platform').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        sel.value = state.platforms[0] || '__new__';
+        openPromptModal("Add a platform", "e.g. Online course", function(name){
+          if(state.platforms.indexOf(name)===-1) state.platforms.push(name);
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-subject').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        var subjects = uniqueSubjects();
+        sel.value = subjects[0] || '__new__';
+        openPromptModal("Add a subject", "e.g. Maths", function(name){
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-percent').oninput = function(e){
+      document.getElementById('m-percent-out').textContent = e.target.value + '%';
+    };
+    document.querySelectorAll('input[name="m-type"]').forEach(function(r){
+      r.onchange = function(){
+        var checked = document.querySelector('input[name="m-type"]:checked').value;
+        document.getElementById('field-recurrence').style.display = checked==='Recurring' ? 'block' : 'none';
+        document.getElementById('label-deadline').textContent = checked==='Recurring' ? 'Deadline (required)' : 'Deadline (optional)';
+      };
+    });
+    document.getElementById('m-cancel').onclick = closeModal;
+    overlay.onclick = function(e){ if(e.target===overlay) closeModal(); };
+    document.getElementById('m-save').onclick = saveModal;
+  }
+
+  function closeModal(){
+    var o = document.getElementById('overlay');
+    if(o) o.remove();
+    editingId = null;
+  }
+
+  function saveModal(){
+    var errEl = document.getElementById('m-error');
+    errEl.style.display = 'none';
+    var title = document.getElementById('m-title').value.trim();
+    if(!title){ errEl.textContent = 'Give the task a title first.'; errEl.style.display='block'; return; }
+    var child = document.getElementById('m-child').value;
+    if(!child || child==='__new__'){ errEl.textContent = 'Pick or add a child first.'; errEl.style.display='block'; return; }
+    var subject = document.getElementById('m-subject').value;
+    if(!subject || subject==='__new__'){ errEl.textContent = 'Pick or add a subject first.'; errEl.style.display='block'; return; }
+    if(state.subjects.indexOf(subject)===-1) state.subjects.push(subject);
+    var platform = document.getElementById('m-platform').value;
+    if(!platform || platform==='__new__'){ errEl.textContent = 'Pick or add a platform first.'; errEl.style.display='block'; return; }
+    var type = document.querySelector('input[name="m-type"]:checked').value;
+    var recurrence = type==='Recurring' ? document.getElementById('m-recurrence').value : null;
+    var deadline = document.getElementById('m-deadline').value || null;
+    if(type==='Recurring' && !deadline){ errEl.textContent = 'Recurring tasks need a deadline so they know when to repeat.'; errEl.style.display='block'; return; }
+    var percent = parseInt(document.getElementById('m-percent').value, 10);
+    var notes = document.getElementById('m-notes').value.trim();
+
+    if(editingId){
+      var t = findTask(editingId);
+      t.title=title; t.child=child; t.subject=subject; t.platform=platform;
+      t.type=type; t.recurrence=recurrence; t.deadline=deadline; t.percent=percent; t.notes=notes;
+    } else {
+      state.tasks.push({
+        id: uid(), title:title, child:child, subject:subject, platform:platform,
+        type:type, recurrence:recurrence, deadline:deadline, percent:percent, notes:notes, createdAt: Date.now()
+      });
+    }
+    saveState();
+    closeModal();
+    render();
+  }
+
+  // ---- Bootstrap ----
+  (async function init(){
+    if(!isFirebaseConfigured()){
+      render(); // shows the "setup needed" screen
+      return;
+    }
+    try{
+      await initFirebase();
+    }catch(e){
+      document.getElementById('app').innerHTML = '<div class="loading">Could not connect to Firebase. Double-check FIREBASE_CONFIG in index.html.</div>';
+      return;
+    }
+    if(familyCode){
+      subscribeToFamily(); // renders once the first snapshot arrives
+    } else {
+      render(); // shows the join/create family screen
+    }
+  })();
+})();
+</script>
+</body>
+</html>

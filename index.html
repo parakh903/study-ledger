@@ -334,13 +334,13 @@
   // See README.md for step-by-step Firebase + GitHub Pages setup.
   // ============================================================
   var FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDorVBmmT0A_GMBkoUYMOws7ySAUs4OGls",
-  authDomain: "study-ledger-d84a2.firebaseapp.com",
-  projectId: "study-ledger-d84a2",
-  storageBucket: "study-ledger-d84a2.firebasestorage.app",
-  messagingSenderId: "1096956020972",
-  appId: "1:1096956020972:web:be84ee3e3076049777bdc9"
-};
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
   var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid mix-ups
 
   var CHILD_COLORS = ['#4C6EF5','#E8590C','#AE3EC9','#2F9E44','#1098AD','#F08C00','#D6336C','#495057'];
@@ -844,7 +844,7 @@
 
   function renderControlsBar(){
     var scoped = tasksForChildScope();
-    var counts = {overdue:0, dueSoon:0, inProgress:0, done:0};
+    var counts = {overdue:0, dueSoon:0, inProgress:0, notStarted:0, done:0};
     var pctSum=0;
     scoped.forEach(function(t){
       var s = getStatus(t);
@@ -854,7 +854,7 @@
     var avg = scoped.length ? Math.round(pctSum/scoped.length) : 0;
     return '<div class="controls-bar">' +
       '<button class="btn btn-ghost btn-sm" id="btn-toggle-controls">'+(controlsExpanded ? 'Hide filters ▲' : 'Filters & sort ▾')+'</button>' +
-      '<span class="mini-stats">'+counts.overdue+' late · '+counts.dueSoon+' soon · '+counts.inProgress+' active · '+counts.done+' done · '+avg+'% avg</span>' +
+      '<span class="mini-stats">'+counts.overdue+' late · '+counts.dueSoon+' soon · '+counts.inProgress+' active · '+counts.notStarted+' not started · '+counts.done+' done · '+avg+'% avg</span>' +
       '</div>';
   }
 

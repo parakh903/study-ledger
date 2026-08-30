@@ -804,6 +804,15 @@
       document.getElementById('btn-copy-code').onclick = function(){
         navigator.clipboard.writeText(familyCode).then(function(){ showToast('Family code copied.'); }).catch(function(){});
       };
+      document.getElementById('btn-export-backup').onclick = exportBackup;
+      document.getElementById('btn-import-backup').onclick = function(){
+        document.getElementById('import-file-input').click();
+      };
+      document.getElementById('import-file-input').onchange = function(e){
+        var file = e.target.files[0];
+        if(file) importBackupFile(file);
+        e.target.value = '';
+      };
       bindManageEvents(document);
     } else if(activeTab==='history'){
       bindHistoryEvents();
@@ -1251,6 +1260,47 @@
     });
   }
 
+  function exportBackup(){
+    var dataStr = JSON.stringify(state, null, 2);
+    var blob = new Blob([dataStr], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'study-ledger-backup-' + familyCode + '-' + todayStr() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Backup downloaded.');
+  }
+
+  function importBackupFile(file){
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var parsed;
+      try {
+        parsed = JSON.parse(ev.target.result);
+      } catch(e){
+        showToast("Couldn't read that file — make sure it's a Study Ledger backup .json.");
+        return;
+      }
+      if(!parsed || !Array.isArray(parsed.tasks)){
+        showToast("That file doesn't look like a Study Ledger backup.");
+        return;
+      }
+      openConfirmModal('This replaces everything currently in family '+familyCode+' with the contents of this backup file. This can\'t be undone.', 'Restore backup', function(){
+        state = migrateState(parsed);
+        saveState();
+        render();
+        showToast('Backup restored.');
+      });
+    };
+    reader.onerror = function(){
+      showToast("Couldn't read that file.");
+    };
+    reader.readAsText(file);
+  }
+
   function renderManagePane(){
     return '<div class="masthead"><div><h1>Manage lists</h1><div class="sub">Children, subjects &amp; platforms used across tasks</div></div></div>' +
       '<div class="manage-pane">' +
@@ -1258,6 +1308,12 @@
           '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;">Enter this on any other iPhone or Mac to join the same shared ledger.</p>' +
           '<div class="code-display" style="max-width:220px;">'+familyCode+'</div>' +
           '<button class="btn btn-ghost" id="btn-copy-code">Copy code</button>' +
+        '</div>' +
+        '<div class="manage-section"><h3>Backup</h3>' +
+          '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;">Your data already lives on the server, not on this phone — clearing Safari history can\'t delete it. This is an extra offline copy, useful before big changes or if you ever move to a new Firebase project.</p>' +
+          '<button class="btn" id="btn-export-backup" style="margin-right:8px;">Download backup (.json)</button>' +
+          '<button class="btn btn-ghost" id="btn-import-backup">Restore from backup</button>' +
+          '<input type="file" id="import-file-input" accept="application/json" style="display:none;">' +
         '</div>' +
         '<div class="manage-key">' +
           '<span><span class="type-swatch solid" style="--sw-color:'+(theme==='dark'?SUBJECT_SOLID_DARK[0]:SUBJECT_SOLID[0])+'"></span>Subject — solid</span>' +

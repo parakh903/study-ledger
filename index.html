@@ -165,7 +165,7 @@
 
   /* Reports */
   .report-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
-  @media (min-width:520px){ .report-stats{grid-template-columns:repeat(4,1fr);} }
+  @media (min-width:520px){ .report-stats{grid-template-columns:repeat(5,1fr);} }
   .report-stat{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:12px 8px;text-align:center;}
   .report-stat .num{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:var(--brand);}
   .report-stat .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
@@ -1339,24 +1339,62 @@
   }
 
   // ---- Reports ----
+  function periodDaysForRecurrence(r){
+    switch(r){
+      case 'Daily': return 1;
+      case 'Weekly': return 7;
+      case 'Fortnightly': return 14;
+      case 'Monthly': return 30;
+      case 'Term': return 70;
+      default: return 7;
+    }
+  }
+
+  // How consistently recurring tasks are being kept up with, over a rolling window —
+  // this matters more than "% done" for recurring tasks, since that resets to 0 every cycle.
+  function computeRecurringConsistency(tasks, windowDays){
+    windowDays = windowDays || 30;
+    var recurringTasks = tasks.filter(function(t){ return t.type==='Recurring'; });
+    if(recurringTasks.length===0) return null;
+    var cutoff = Date.now() - windowDays*86400000;
+    var expectedTotal = 0, actualTotal = 0, countedAny = false;
+    recurringTasks.forEach(function(t){
+      var periodDays = periodDaysForRecurrence(t.recurrence);
+      var createdAt = t.createdAt || cutoff;
+      var daysSinceCreation = (Date.now() - createdAt) / 86400000;
+      var effectiveWindow = Math.min(windowDays, daysSinceCreation);
+      if(effectiveWindow < periodDays * 0.5) return; // too new to fairly judge
+      countedAny = true;
+      var expected = Math.max(1, Math.round(effectiveWindow / periodDays));
+      var actual = state.history.filter(function(h){ return h.taskId===t.id && h.completedAt >= cutoff; }).length;
+      expectedTotal += expected;
+      actualTotal += Math.min(actual, expected);
+    });
+    if(!countedAny || expectedTotal===0) return null;
+    return Math.round(actualTotal / expectedTotal * 100);
+  }
+
   function computeOverview(){
-    var active = state.tasks;
-    var avgPct = active.length ? Math.round(active.reduce(function(s,t){ return s+t.percent; },0)/active.length) : 0;
+    var adhocTasks = state.tasks.filter(function(t){ return t.type !== 'Recurring'; });
+    var avgPct = adhocTasks.length ? Math.round(adhocTasks.reduce(function(s,t){ return s+t.percent; },0)/adhocTasks.length) : null;
     var withDeadline = state.history.filter(function(h){ return h.deadline; });
     var onTime = withDeadline.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
     var onTimeRate = withDeadline.length ? Math.round(onTime/withDeadline.length*100) : null;
-    return { total: active.length, completions: state.history.length, avgPct: avgPct, onTimeRate: onTimeRate };
+    var recurringRate = computeRecurringConsistency(state.tasks, 30);
+    return { total: state.tasks.length, completions: state.history.length, avgPct: avgPct, onTimeRate: onTimeRate, recurringRate: recurringRate };
   }
 
   function computeChildTable(){
     return state.children.map(function(child){
       var childTasks = state.tasks.filter(function(t){ return t.child===child; });
-      var avgPct = childTasks.length ? Math.round(childTasks.reduce(function(s,t){ return s+t.percent; },0)/childTasks.length) : 0;
+      var adhocTasks = childTasks.filter(function(t){ return t.type !== 'Recurring'; });
+      var avgPct = adhocTasks.length ? Math.round(adhocTasks.reduce(function(s,t){ return s+t.percent; },0)/adhocTasks.length) : null;
+      var recurringRate = computeRecurringConsistency(childTasks, 30);
       var hist = state.history.filter(function(h){ return h.child===child; });
       var withDl = hist.filter(function(h){ return h.deadline; });
       var onTime = withDl.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
       var onTimeRate = withDl.length ? Math.round(onTime/withDl.length*100) : null;
-      return {child:child, active:childTasks.length, avgPct:avgPct, completions:hist.length, onTimeRate:onTimeRate};
+      return {child:child, active:childTasks.length, avgPct:avgPct, recurringRate:recurringRate, completions:hist.length, onTimeRate:onTimeRate};
     });
   }
 
@@ -1416,10 +1454,16 @@
     }
     var body = rows.map(function(r){
       return '<tr><td style="color:'+childColor(r.child)+';">'+escapeHtml(r.child)+'</td>' +
-        '<td>'+r.active+'</td><td>'+r.avgPct+'%</td><td>'+r.completions+'</td><td>'+(r.onTimeRate===null?'—':r.onTimeRate+'%')+'</td></tr>';
+        '<td>'+r.active+'</td>' +
+        '<td>'+(r.avgPct===null?'—':r.avgPct+'%')+'</td>' +
+        '<td>'+(r.recurringRate===null?'—':r.recurringRate+'%')+'</td>' +
+        '<td>'+r.completions+'</td>' +
+        '<td>'+(r.onTimeRate===null?'—':r.onTimeRate+'%')+'</td></tr>';
     }).join('');
-    return '<div class="report-card"><h3>By child</h3><table class="report-table">' +
-      '<thead><tr><th>Child</th><th>Active</th><th>Avg %</th><th>Completed</th><th>On-time</th></tr></thead>' +
+    return '<div class="report-card"><h3>By child</h3>' +
+      '<p style="font-size:11.5px;color:var(--ink-faint);margin:-6px 0 12px;">Adhoc % is progress on one-off tasks. Recurring % is how consistently repeating tasks are kept up with (last 30 days) — its own % always resets to 0 after each completion, so it isn\'t a useful number on its own.</p>' +
+      '<table class="report-table">' +
+      '<thead><tr><th>Child</th><th>Active</th><th>Adhoc %</th><th>Recurring %</th><th>Completed</th><th>On-time</th></tr></thead>' +
       '<tbody>'+body+'</tbody></table></div>';
   }
 
@@ -1551,7 +1595,8 @@
       '<div class="report-stats">' +
         reportStatHtml(overview.total, 'Active tasks') +
         reportStatHtml(overview.completions, 'Completions (all-time)') +
-        reportStatHtml(overview.avgPct+'%', 'Avg. done now') +
+        reportStatHtml(overview.avgPct===null ? '—' : overview.avgPct+'%', 'Adhoc progress') +
+        reportStatHtml(overview.recurringRate===null ? '—' : overview.recurringRate+'%', 'Recurring (30d)') +
         reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
       '</div>' +
       renderActivityLog() +

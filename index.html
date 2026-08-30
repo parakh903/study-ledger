@@ -35,13 +35,13 @@
     --shadow-tab: 0 2px 0 rgba(0,0,0,0.06);
   }
   [data-theme="dark"]{
-    --paper:#000000;
-    --card:#141414;
+    --paper:#1C1C1E;
+    --card:#000000;
     --ink:#F5F6F7;
     --ink-soft:#AEB6BF;
     --ink-faint:#757E88;
-    --line:#2C2C2E;
-    --line-soft:#1D1D1F;
+    --line:#3A3A3C;
+    --line-soft:#161616;
     --brand:#34E0A1;
     --brand-dark:#22B383;
     --brand-tint:rgba(52,224,161,0.14);
@@ -50,10 +50,10 @@
     --duesoon:#FFB020;
     --inprogress:#7C8CFF;
     --notstarted:#8891A0;
-    --tab-inactive-bg:#1B1B1D;
+    --tab-inactive-bg:#000000;
     --deadline-overdue-bg:#3A1418;
     --deadline-soon-bg:#3A2A0A;
-    --overlay-bg:rgba(0,0,0,0.8);
+    --overlay-bg:rgba(0,0,0,0.85);
   }
   *{box-sizing:border-box;}
   html{background:var(--paper);}
@@ -203,14 +203,6 @@
   .period-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
   .period-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;border:1.5px solid;background:var(--card);white-space:nowrap;}
   .report-note{font-size:11px;color:var(--ink-faint);margin-top:10px;}
-  .heatmap{display:flex;gap:3px;overflow-x:auto;padding:2px 2px 8px;}
-  .heatmap-col{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
-  .heatmap-cell{width:12px;height:12px;border-radius:3px;background:var(--line-soft);}
-  .heatmap-cell.filled{background:var(--brand);}
-  .heatmap-cell.future{background:transparent;}
-  .heatmap-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-faint);margin-top:2px;}
-  .drilldown-select-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  .drilldown-select-row select{flex:1;min-width:140px;}
 
   /* Filters */
   .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center;}
@@ -413,8 +405,7 @@
   var controlsExpanded = false;
   var historyFilterChild = 'All';
   var reportGranularity = 'weekly';
-  var drilldownChild = null;
-  var drilldownTitle = null;
+  var activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''};
 
   // Sync / profile state
   var db = null;
@@ -1454,9 +1445,30 @@
     return {key:key3, label:'Week of ' + monday.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})};
   }
 
+  function getFilteredHistory(){
+    return state.history.filter(function(h){
+      if(activityFilters.child && h.child !== activityFilters.child) return false;
+      if(activityFilters.platform && h.platform !== activityFilters.platform) return false;
+      if(activityFilters.subject && h.subject !== activityFilters.subject) return false;
+      if(activityFilters.startDate){
+        var start = new Date(activityFilters.startDate+'T00:00:00');
+        if(new Date(h.completedAt) < start) return false;
+      }
+      if(activityFilters.endDate){
+        var end = new Date(activityFilters.endDate+'T23:59:59');
+        if(new Date(h.completedAt) > end) return false;
+      }
+      return true;
+    });
+  }
+
+  function hasActiveActivityFilters(){
+    return !!(activityFilters.child || activityFilters.platform || activityFilters.subject || activityFilters.startDate || activityFilters.endDate);
+  }
+
   function groupHistoryByPeriod(granularity){
     var groups = {};
-    state.history.forEach(function(h){
+    getFilteredHistory().forEach(function(h){
       var pk = periodKeyAndLabel(h.completedAt, granularity);
       if(!groups[pk.key]) groups[pk.key] = {label: pk.label, entries: []};
       groups[pk.key].entries.push(h);
@@ -1493,95 +1505,25 @@
     var granButtons = ['daily','weekly','monthly','yearly'].map(function(g){
       return '<button class="gran-btn '+(reportGranularity===g?'active':'')+'" data-gran="'+g+'">'+g.charAt(0).toUpperCase()+g.slice(1)+'</button>';
     }).join('');
+    var filtered = hasActiveActivityFilters();
     var body = groups.length===0
-      ? '<div class="report-empty">No completions logged yet — this fills in as tasks get ticked off.</div>'
+      ? '<div class="report-empty">'+(filtered ? 'No completions match these filters.' : 'No completions logged yet — this fills in as tasks get ticked off.')+'</div>'
       : groups.map(renderPeriodGroup).join('');
     return '<div class="report-card" style="max-width:720px;">' +
       '<h3>Activity log — who did what, where, and when</h3>' +
+      '<div class="filters" style="margin-bottom:12px;">' +
+        selectHtml('af-child', 'All children', state.children, activityFilters.child) +
+        selectHtml('af-platform', 'All platforms', state.platforms, activityFilters.platform) +
+        selectHtml('af-subject', 'All subjects', uniqueSubjects(), activityFilters.subject) +
+      '</div>' +
+      '<div class="filters" style="margin-bottom:14px;">' +
+        '<input type="date" id="af-start" value="'+(activityFilters.startDate||'')+'" title="From date">' +
+        '<input type="date" id="af-end" value="'+(activityFilters.endDate||'')+'" title="To date">' +
+        (filtered ? '<button class="btn btn-ghost btn-sm" id="af-clear">Clear filters</button>' : '') +
+      '</div>' +
       '<div class="gran-row">'+granButtons+'</div>' +
       body +
       (allGroups.length > groups.length ? '<div class="report-note">Showing the 12 most recent '+reportGranularity+' periods.</div>' : '') +
-    '</div>';
-  }
-
-  function getTaskTitlesForChild(child){
-    var set = {};
-    state.tasks.forEach(function(t){ if(t.child===child) set[t.title]=true; });
-    state.history.forEach(function(h){ if(h.child===child) set[h.title]=true; });
-    return Object.keys(set).sort();
-  }
-
-  function computeTaskDayCounts(child, title){
-    var counts = {};
-    state.history.forEach(function(h){
-      if(h.child===child && h.title===title){
-        var d = new Date(h.completedAt);
-        var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        counts[key] = (counts[key]||0) + 1;
-      }
-    });
-    return counts;
-  }
-
-  function renderHeatmap(dayCounts, weeksBack){
-    var today = new Date(); today.setHours(0,0,0,0);
-    var day = today.getDay();
-    var diffToMonday = (day===0 ? -6 : 1-day);
-    var thisMonday = new Date(today); thisMonday.setDate(today.getDate()+diffToMonday);
-    var startMonday = new Date(thisMonday); startMonday.setDate(thisMonday.getDate() - (weeksBack-1)*7);
-
-    var html = '<div class="heatmap">';
-    for(var w=0; w<weeksBack; w++){
-      html += '<div class="heatmap-col">';
-      for(var d=0; d<7; d++){
-        var day2 = new Date(startMonday); day2.setDate(startMonday.getDate() + w*7 + d);
-        var key = day2.getFullYear()+'-'+String(day2.getMonth()+1).padStart(2,'0')+'-'+String(day2.getDate()).padStart(2,'0');
-        var count = dayCounts[key] || 0;
-        var isFuture = day2 > today;
-        var label = day2.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
-        var cls = isFuture ? 'heatmap-cell future' : (count>0 ? 'heatmap-cell filled' : 'heatmap-cell empty');
-        html += '<div class="'+cls+'" title="'+label+(count>0 ? ' — done' : '')+'"></div>';
-      }
-      html += '</div>';
-    }
-    html += '</div>';
-    return html;
-  }
-
-  function renderTaskDrilldown(){
-    if(state.children.length===0){
-      return '<div class="report-card" style="max-width:720px;"><h3>Task history by child</h3><div class="report-empty">Add a child under Manage to see this.</div></div>';
-    }
-    var selChild = (drilldownChild && state.children.indexOf(drilldownChild)>=0) ? drilldownChild : state.children[0];
-    var titles = getTaskTitlesForChild(selChild);
-    var selTitle = (drilldownTitle && titles.indexOf(drilldownTitle)>=0) ? drilldownTitle : (titles[0] || null);
-
-    var body;
-    if(!selTitle){
-      body = '<div class="report-empty">No tasks logged for '+escapeHtml(selChild)+' yet.</div>';
-    } else {
-      var dayCounts = computeTaskDayCounts(selChild, selTitle);
-      var matching = state.history.filter(function(h){ return h.child===selChild && h.title===selTitle; })
-        .sort(function(a,b){ return b.completedAt - a.completedAt; });
-      body = renderHeatmap(dayCounts, 13) +
-        '<div class="heatmap-legend"><span class="heatmap-cell empty" style="display:inline-block;"></span> No &nbsp; <span class="heatmap-cell filled" style="display:inline-block;"></span> Done &nbsp;·&nbsp; last 13 weeks</div>' +
-        '<div class="report-note">'+matching.length+' completion'+(matching.length===1?'':'s')+' logged for this task</div>' +
-        (matching.length ? '<table class="report-table" style="margin-top:12px;"><thead><tr><th>Date</th><th>Day</th><th>Time</th></tr></thead><tbody>' +
-          matching.map(function(h){
-            var d = new Date(h.completedAt);
-            return '<tr><td>'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+'</td>' +
-              '<td>'+d.toLocaleDateString('en-AU',{weekday:'long'})+'</td>' +
-              '<td>'+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})+'</td></tr>';
-          }).join('') + '</tbody></table>' : '');
-    }
-
-    return '<div class="report-card" style="max-width:720px;">' +
-      '<h3>Task history by child — e.g. "which days did Maths revision"</h3>' +
-      '<div class="drilldown-select-row">' +
-        '<select id="drilldown-child">' + state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(c===selChild?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') + '</select>' +
-        '<select id="drilldown-title">' + titles.map(function(t){ return '<option value="'+escapeHtml(t)+'" '+(t===selTitle?'selected':'')+'>'+escapeHtml(t)+'</option>'; }).join('') + '</select>' +
-      '</div>' +
-      body +
     '</div>';
   }
 
@@ -1589,10 +1531,18 @@
     document.querySelectorAll('.gran-btn').forEach(function(btn){
       btn.onclick = function(){ reportGranularity = btn.getAttribute('data-gran'); render(); };
     });
-    var dc = document.getElementById('drilldown-child');
-    if(dc) dc.onchange = function(e){ drilldownChild = e.target.value; drilldownTitle = null; render(); };
-    var dt = document.getElementById('drilldown-title');
-    if(dt) dt.onchange = function(e){ drilldownTitle = e.target.value; render(); };
+    var afChild = document.getElementById('af-child');
+    if(afChild) afChild.onchange = function(e){ activityFilters.child = e.target.value; render(); };
+    var afPlatform = document.getElementById('af-platform');
+    if(afPlatform) afPlatform.onchange = function(e){ activityFilters.platform = e.target.value; render(); };
+    var afSubject = document.getElementById('af-subject');
+    if(afSubject) afSubject.onchange = function(e){ activityFilters.subject = e.target.value; render(); };
+    var afStart = document.getElementById('af-start');
+    if(afStart) afStart.onchange = function(e){ activityFilters.startDate = e.target.value; render(); };
+    var afEnd = document.getElementById('af-end');
+    if(afEnd) afEnd.onchange = function(e){ activityFilters.endDate = e.target.value; render(); };
+    var afClear = document.getElementById('af-clear');
+    if(afClear) afClear.onclick = function(){ activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''}; render(); };
   }
 
   function renderReportsPane(){
@@ -1604,7 +1554,6 @@
         reportStatHtml(overview.avgPct+'%', 'Avg. done now') +
         reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
       '</div>' +
-      renderTaskDrilldown() +
       renderActivityLog() +
       renderWeeklyChart() +
       renderChildTable() +

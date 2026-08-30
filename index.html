@@ -406,6 +406,8 @@
   var historyFilterChild = 'All';
   var reportGranularity = 'weekly';
   var activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''};
+  var progressSelChild = null;
+  var progressSelTitle = null;
 
   // Sync / profile state
   var db = null;
@@ -503,7 +505,7 @@
   function defaultState(){
     var viewId = uid();
     return {
-      children:[], subjects:[], platforms: DEFAULT_PLATFORMS.slice(), tasks:[], history:[],
+      children:[], subjects:[], platforms: DEFAULT_PLATFORMS.slice(), tasks:[], history:[], progressLog:[],
       views:[{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}],
       activeViewId: viewId
     };
@@ -516,6 +518,7 @@
     s.platforms = (s.platforms && s.platforms.length) ? s.platforms : DEFAULT_PLATFORMS.slice();
     s.tasks = s.tasks || [];
     s.history = s.history || [];
+    s.progressLog = s.progressLog || [];
     if(!s.views || !s.views.length){
       var viewId = uid();
       s.views = [{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}];
@@ -634,6 +637,23 @@
       completedAt: Date.now()
     });
     if(state.history.length > 500) state.history = state.history.slice(0, 500);
+  }
+
+  // Records every meaningful percent change (not just completions), so progress like
+  // 20% today, 40% tomorrow, 100% the day after shows up in Reports, not just the final tick.
+  function logProgress(t, oldPercent){
+    if(oldPercent === t.percent) return;
+    state.progressLog.unshift({
+      id: uid(),
+      taskId: t.id,
+      title: t.title,
+      child: t.child,
+      subject: t.subject,
+      platform: t.platform,
+      percent: t.percent,
+      timestamp: Date.now()
+    });
+    if(state.progressLog.length > 3000) state.progressLog = state.progressLog.slice(0, 3000);
   }
 
   function handleCompletion(t){
@@ -1142,7 +1162,7 @@
           '<span class="pill pill-deadline '+deadlineClass+'">'+deadlineText+'</span>' +
         '</div>' +
         '<div class="progress-row">' +
-          '<input type="range" class="pct-input" min="0" max="100" step="5" value="'+t.percent+'" data-action="pct" data-id="'+t.id+'">' +
+          '<input type="range" class="pct-input" min="0" max="100" step="5" value="'+t.percent+'" data-action="pct" data-id="'+t.id+'" data-start="'+t.percent+'">' +
           '<span class="pct-label">'+t.percent+'%</span>' +
         '</div>' +
       '</div>' +
@@ -1158,7 +1178,9 @@
       el.onclick = function(){
         var t = findTask(el.getAttribute('data-id'));
         if(!t) return;
+        var oldPercent = t.percent;
         t.percent = t.percent >= 100 ? (t._prev || 0) : (t._prev = t.percent, 100);
+        logProgress(t, oldPercent);
         handleCompletion(t);
         saveState(); render();
       };
@@ -1176,7 +1198,11 @@
       };
       el.onchange = function(){
         var t = findTask(el.getAttribute('data-id'));
-        if(t) handleCompletion(t);
+        if(t){
+          var oldPercent = parseInt(el.getAttribute('data-start'), 10);
+          logProgress(t, oldPercent);
+          handleCompletion(t);
+        }
         saveState(); render();
       };
     });
@@ -1571,6 +1597,70 @@
     '</div>';
   }
 
+  function getTaskTitlesForChild(child){
+    var set = {};
+    state.tasks.forEach(function(t){ if(t.child===child) set[t.title]=true; });
+    state.progressLog.forEach(function(p){ if(p.child===child) set[p.title]=true; });
+    state.history.forEach(function(h){ if(h.child===child) set[h.title]=true; });
+    return Object.keys(set).sort();
+  }
+
+  // Collapses the raw progress log to one value per day (the last update that day),
+  // so a task nudged twice in one day shows as a single step in the timeline.
+  function computeProgressSeries(child, title){
+    var byDay = {};
+    state.progressLog.forEach(function(p){
+      if(p.child!==child || p.title!==title) return;
+      var d = new Date(p.timestamp);
+      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      if(!byDay[key] || byDay[key].timestamp < p.timestamp) byDay[key] = p;
+    });
+    return Object.keys(byDay).sort().map(function(k){ return byDay[k]; });
+  }
+
+  function renderProgressTimeline(){
+    if(state.children.length===0){
+      return '<div class="report-card" style="max-width:720px;"><h3>Progress over time</h3><div class="report-empty">Add a child under Manage to see this.</div></div>';
+    }
+    var selChild = (progressSelChild && state.children.indexOf(progressSelChild)>=0) ? progressSelChild : state.children[0];
+    var titles = getTaskTitlesForChild(selChild);
+    var selTitle = (progressSelTitle && titles.indexOf(progressSelTitle)>=0) ? progressSelTitle : (titles[0] || null);
+
+    var body;
+    if(!selTitle){
+      body = '<div class="report-empty">No progress logged for '+escapeHtml(selChild)+' yet — this fills in as the % slider gets moved.</div>';
+    } else {
+      var series = computeProgressSeries(selChild, selTitle);
+      if(series.length===0){
+        body = '<div class="report-empty">No progress logged for this task yet.</div>';
+      } else {
+        var recent = series.slice(-20);
+        var color = subjectColor(recent[0].subject || 'General');
+        var cols = recent.map(function(p){
+          var d = new Date(p.timestamp);
+          var h = Math.max(3, Math.round(p.percent * 0.9));
+          return '<div class="vbar-col"><div class="vbar-count">'+p.percent+'%</div><div class="vbar" style="height:'+h+'px;background:'+color+';"></div><div class="vbar-label">'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+'</div></div>';
+        }).join('');
+        body = '<div class="vbar-chart">'+cols+'</div>' +
+          '<table class="report-table" style="margin-top:14px;"><thead><tr><th>Date</th><th>Day</th><th>% at that point</th></tr></thead><tbody>' +
+          recent.slice().reverse().map(function(p){
+            var d = new Date(p.timestamp);
+            return '<tr><td>'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+'</td>' +
+              '<td>'+d.toLocaleDateString('en-AU',{weekday:'long'})+'</td><td>'+p.percent+'%</td></tr>';
+          }).join('') + '</tbody></table>';
+      }
+    }
+
+    return '<div class="report-card" style="max-width:720px;">' +
+      '<h3>Progress over time — e.g. 20% today, 40% tomorrow, 100% the day after</h3>' +
+      '<div class="filters" style="margin-bottom:14px;">' +
+        '<select id="prog-child">' + state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(c===selChild?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') + '</select>' +
+        '<select id="prog-title">' + titles.map(function(t){ return '<option value="'+escapeHtml(t)+'" '+(t===selTitle?'selected':'')+'>'+escapeHtml(t)+'</option>'; }).join('') + '</select>' +
+      '</div>' +
+      body +
+    '</div>';
+  }
+
   function bindReportsEvents(){
     document.querySelectorAll('.gran-btn').forEach(function(btn){
       btn.onclick = function(){ reportGranularity = btn.getAttribute('data-gran'); render(); };
@@ -1587,6 +1677,10 @@
     if(afEnd) afEnd.onchange = function(e){ activityFilters.endDate = e.target.value; render(); };
     var afClear = document.getElementById('af-clear');
     if(afClear) afClear.onclick = function(){ activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''}; render(); };
+    var pc = document.getElementById('prog-child');
+    if(pc) pc.onchange = function(e){ progressSelChild = e.target.value; progressSelTitle = null; render(); };
+    var pt = document.getElementById('prog-title');
+    if(pt) pt.onchange = function(e){ progressSelTitle = e.target.value; render(); };
   }
 
   function renderReportsPane(){
@@ -1599,6 +1693,7 @@
         reportStatHtml(overview.recurringRate===null ? '—' : overview.recurringRate+'%', 'Recurring (30d)') +
         reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
       '</div>' +
+      renderProgressTimeline() +
       renderActivityLog() +
       renderWeeklyChart() +
       renderChildTable() +
@@ -1737,8 +1832,11 @@
 
     if(editingId){
       var t = findTask(editingId);
+      var oldPercent = t.percent;
       t.title=title; t.child=child; t.subject=subject; t.platform=platform;
       t.type=type; t.recurrence=recurrence; t.deadline=deadline; t.percent=percent; t.notes=notes;
+      logProgress(t, oldPercent);
+      handleCompletion(t);
     } else {
       state.tasks.push({
         id: uid(), title:title, child:child, subject:subject, platform:platform,

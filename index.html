@@ -406,8 +406,6 @@
   var historyFilterChild = 'All';
   var reportGranularity = 'weekly';
   var activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''};
-  var progressSelChild = null;
-  var progressSelTitle = null;
 
   // Sync / profile state
   var db = null;
@@ -1515,18 +1513,33 @@
     return {key:key3, label:'Week of ' + monday.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})};
   }
 
-  function getFilteredHistory(){
-    return state.history.filter(function(h){
-      if(activityFilters.child && h.child !== activityFilters.child) return false;
-      if(activityFilters.platform && h.platform !== activityFilters.platform) return false;
-      if(activityFilters.subject && h.subject !== activityFilters.subject) return false;
+  // Combines partial progress updates and full completions into one feed. Completion
+  // moments are skipped from progressLog (kind==='progress' only fires for <100%) since
+  // the matching history entry already represents that same moment as "Completed".
+  function getUnifiedActivityRows(){
+    var rows = [];
+    state.progressLog.forEach(function(p){
+      if(p.percent >= 100) return;
+      rows.push({timestamp:p.timestamp, child:p.child, subject:p.subject, platform:p.platform, title:p.title, kind:'progress', percent:p.percent});
+    });
+    state.history.forEach(function(h){
+      rows.push({timestamp:h.completedAt, child:h.child, subject:h.subject, platform:h.platform, title:h.title, kind:'completed', percent:100});
+    });
+    return rows;
+  }
+
+  function getFilteredActivity(){
+    return getUnifiedActivityRows().filter(function(r){
+      if(activityFilters.child && r.child !== activityFilters.child) return false;
+      if(activityFilters.platform && r.platform !== activityFilters.platform) return false;
+      if(activityFilters.subject && r.subject !== activityFilters.subject) return false;
       if(activityFilters.startDate){
         var start = new Date(activityFilters.startDate+'T00:00:00');
-        if(new Date(h.completedAt) < start) return false;
+        if(new Date(r.timestamp) < start) return false;
       }
       if(activityFilters.endDate){
         var end = new Date(activityFilters.endDate+'T23:59:59');
-        if(new Date(h.completedAt) > end) return false;
+        if(new Date(r.timestamp) > end) return false;
       }
       return true;
     });
@@ -1538,34 +1551,38 @@
 
   function groupHistoryByPeriod(granularity){
     var groups = {};
-    getFilteredHistory().forEach(function(h){
-      var pk = periodKeyAndLabel(h.completedAt, granularity);
+    getFilteredActivity().forEach(function(r){
+      var pk = periodKeyAndLabel(r.timestamp, granularity);
       if(!groups[pk.key]) groups[pk.key] = {label: pk.label, entries: []};
-      groups[pk.key].entries.push(h);
+      groups[pk.key].entries.push(r);
     });
     return Object.keys(groups).sort().reverse().map(function(k){ return groups[k]; });
   }
 
   function renderPeriodGroup(group){
     var byChild = {};
-    group.entries.forEach(function(h){ byChild[h.child] = (byChild[h.child]||0)+1; });
+    group.entries.forEach(function(r){ byChild[r.child] = (byChild[r.child]||0)+1; });
     var chipRow = Object.keys(byChild).map(function(c){
       return '<span class="period-chip" style="color:'+childColor(c)+';border-color:'+childColor(c)+';">'+escapeHtml(c)+' · '+byChild[c]+'</span>';
     }).join('');
-    var rows = group.entries.slice().sort(function(a,b){ return b.completedAt - a.completedAt; }).map(function(h){
-      var time = new Date(h.completedAt).toLocaleString('en-AU', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
+    var rows = group.entries.slice().sort(function(a,b){ return b.timestamp - a.timestamp; }).map(function(r){
+      var time = new Date(r.timestamp).toLocaleString('en-AU', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
+      var statusHtml = r.kind==='completed'
+        ? '<span style="color:var(--done);font-weight:700;">✓ Completed</span>'
+        : '<span style="color:var(--duesoon);font-weight:700;">'+r.percent+'% done</span>';
       return '<tr>' +
-        '<td style="color:'+childColor(h.child)+';">'+escapeHtml(h.child)+'</td>' +
-        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.subject||'General')+'</td>' +
-        '<td style="color:'+platformColor(h.platform)+';">'+escapeHtml(h.platform)+'</td>' +
-        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.title)+'</td>' +
+        '<td style="color:'+childColor(r.child)+';">'+escapeHtml(r.child)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(r.subject||'General')+'</td>' +
+        '<td style="color:'+platformColor(r.platform)+';">'+escapeHtml(r.platform)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(r.title)+'</td>' +
+        '<td>'+statusHtml+'</td>' +
         '<td>'+time+'</td>' +
       '</tr>';
     }).join('');
     return '<div class="period-group">' +
-      '<div class="period-header"><span class="period-title">'+escapeHtml(group.label)+'</span><span class="period-count">'+group.entries.length+' completed</span></div>' +
+      '<div class="period-header"><span class="period-title">'+escapeHtml(group.label)+'</span><span class="period-count">'+group.entries.length+' update'+(group.entries.length===1?'':'s')+'</span></div>' +
       '<div class="period-chips">'+chipRow+'</div>' +
-      '<table class="report-table"><thead><tr><th>Child</th><th>Subject</th><th>Platform</th><th>Task</th><th>Completed</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+      '<table class="report-table"><thead><tr><th>Child</th><th>Subject</th><th>Platform</th><th>Task</th><th>Status</th><th>When</th></tr></thead><tbody>'+rows+'</tbody></table>' +
     '</div>';
   }
 
@@ -1577,10 +1594,10 @@
     }).join('');
     var filtered = hasActiveActivityFilters();
     var body = groups.length===0
-      ? '<div class="report-empty">'+(filtered ? 'No completions match these filters.' : 'No completions logged yet — this fills in as tasks get ticked off.')+'</div>'
+      ? '<div class="report-empty">'+(filtered ? 'Nothing matches these filters.' : 'Nothing logged yet — this fills in as tasks get worked on.')+'</div>'
       : groups.map(renderPeriodGroup).join('');
-    return '<div class="report-card" style="max-width:720px;">' +
-      '<h3>Activity log — who did what, where, and when</h3>' +
+    return '<div class="report-card" style="max-width:760px;">' +
+      '<h3>Activity log — who did what, where, when, and how far</h3>' +
       '<div class="filters" style="margin-bottom:12px;">' +
         selectHtml('af-child', 'All children', state.children, activityFilters.child) +
         selectHtml('af-platform', 'All platforms', state.platforms, activityFilters.platform) +
@@ -1594,70 +1611,6 @@
       '<div class="gran-row">'+granButtons+'</div>' +
       body +
       (allGroups.length > groups.length ? '<div class="report-note">Showing the 12 most recent '+reportGranularity+' periods.</div>' : '') +
-    '</div>';
-  }
-
-  function getTaskTitlesForChild(child){
-    var set = {};
-    state.tasks.forEach(function(t){ if(t.child===child) set[t.title]=true; });
-    state.progressLog.forEach(function(p){ if(p.child===child) set[p.title]=true; });
-    state.history.forEach(function(h){ if(h.child===child) set[h.title]=true; });
-    return Object.keys(set).sort();
-  }
-
-  // Collapses the raw progress log to one value per day (the last update that day),
-  // so a task nudged twice in one day shows as a single step in the timeline.
-  function computeProgressSeries(child, title){
-    var byDay = {};
-    state.progressLog.forEach(function(p){
-      if(p.child!==child || p.title!==title) return;
-      var d = new Date(p.timestamp);
-      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      if(!byDay[key] || byDay[key].timestamp < p.timestamp) byDay[key] = p;
-    });
-    return Object.keys(byDay).sort().map(function(k){ return byDay[k]; });
-  }
-
-  function renderProgressTimeline(){
-    if(state.children.length===0){
-      return '<div class="report-card" style="max-width:720px;"><h3>Progress over time</h3><div class="report-empty">Add a child under Manage to see this.</div></div>';
-    }
-    var selChild = (progressSelChild && state.children.indexOf(progressSelChild)>=0) ? progressSelChild : state.children[0];
-    var titles = getTaskTitlesForChild(selChild);
-    var selTitle = (progressSelTitle && titles.indexOf(progressSelTitle)>=0) ? progressSelTitle : (titles[0] || null);
-
-    var body;
-    if(!selTitle){
-      body = '<div class="report-empty">No progress logged for '+escapeHtml(selChild)+' yet — this fills in as the % slider gets moved.</div>';
-    } else {
-      var series = computeProgressSeries(selChild, selTitle);
-      if(series.length===0){
-        body = '<div class="report-empty">No progress logged for this task yet.</div>';
-      } else {
-        var recent = series.slice(-20);
-        var color = subjectColor(recent[0].subject || 'General');
-        var cols = recent.map(function(p){
-          var d = new Date(p.timestamp);
-          var h = Math.max(3, Math.round(p.percent * 0.9));
-          return '<div class="vbar-col"><div class="vbar-count">'+p.percent+'%</div><div class="vbar" style="height:'+h+'px;background:'+color+';"></div><div class="vbar-label">'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+'</div></div>';
-        }).join('');
-        body = '<div class="vbar-chart">'+cols+'</div>' +
-          '<table class="report-table" style="margin-top:14px;"><thead><tr><th>Date</th><th>Day</th><th>% at that point</th></tr></thead><tbody>' +
-          recent.slice().reverse().map(function(p){
-            var d = new Date(p.timestamp);
-            return '<tr><td>'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+'</td>' +
-              '<td>'+d.toLocaleDateString('en-AU',{weekday:'long'})+'</td><td>'+p.percent+'%</td></tr>';
-          }).join('') + '</tbody></table>';
-      }
-    }
-
-    return '<div class="report-card" style="max-width:720px;">' +
-      '<h3>Progress over time — e.g. 20% today, 40% tomorrow, 100% the day after</h3>' +
-      '<div class="filters" style="margin-bottom:14px;">' +
-        '<select id="prog-child">' + state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(c===selChild?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') + '</select>' +
-        '<select id="prog-title">' + titles.map(function(t){ return '<option value="'+escapeHtml(t)+'" '+(t===selTitle?'selected':'')+'>'+escapeHtml(t)+'</option>'; }).join('') + '</select>' +
-      '</div>' +
-      body +
     '</div>';
   }
 
@@ -1677,10 +1630,6 @@
     if(afEnd) afEnd.onchange = function(e){ activityFilters.endDate = e.target.value; render(); };
     var afClear = document.getElementById('af-clear');
     if(afClear) afClear.onclick = function(){ activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''}; render(); };
-    var pc = document.getElementById('prog-child');
-    if(pc) pc.onchange = function(e){ progressSelChild = e.target.value; progressSelTitle = null; render(); };
-    var pt = document.getElementById('prog-title');
-    if(pt) pt.onchange = function(e){ progressSelTitle = e.target.value; render(); };
   }
 
   function renderReportsPane(){
@@ -1693,7 +1642,6 @@
         reportStatHtml(overview.recurringRate===null ? '—' : overview.recurringRate+'%', 'Recurring (30d)') +
         reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
       '</div>' +
-      renderProgressTimeline() +
       renderActivityLog() +
       renderWeeklyChart() +
       renderChildTable() +

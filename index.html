@@ -2,1599 +2,1779 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Ledger">
-<title>Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
-:root{
-  --bg:#1C1C1E;
-  --surface:#050505;
-  --surface-2:#111113;
-  --line: rgba(237,239,243,0.10);
-  --line-strong: rgba(237,239,243,0.20);
-  --text:#EDEFF3;
-  --muted:#8996AC;
-  --income:#3FAE7A;
-  --expense:#FF7A59;
-  --loan:#5C8AC4;
-  --rental:#3E9C9C;
-  --lottery:#D8AE4C;
-  --radius:10px;
-}
-*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;height:100%;}
-body{padding-bottom:env(safe-area-inset-bottom);}
-h1,h2,h3{font-family:'Fraunces',serif; font-weight:600; margin:0;}
-.mono{font-family:'IBM Plex Mono',monospace; font-variant-numeric: tabular-nums;}
-a{color:inherit;}
-button, select, input{font-family:inherit; font-size:15px;}
-input, select{
-  background:var(--surface-2); border:1px solid var(--line-strong); color:var(--text);
-  padding:10px 12px; border-radius:8px; width:100%;
-}
-input:focus, select:focus{outline:2px solid var(--loan); outline-offset:1px;}
-label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px; letter-spacing:.02em; text-transform:uppercase;}
-.field{margin-bottom:14px;}
-.btn{
-  background:var(--loan); color:#0B1524; border:none; padding:11px 18px; border-radius:8px;
-  font-weight:600; cursor:pointer; font-size:14px;
-}
-.btn:active{transform:scale(0.98);}
-.btn-ghost{background:transparent; border:1px solid var(--line-strong); color:var(--text);}
-.btn-danger{background:transparent; border:1px solid var(--expense); color:var(--expense);}
-.row{display:flex; gap:12px; flex-wrap:wrap;}
-.row > *{flex:1; min-width:140px;}
-
-/* ---------- App shell ---------- */
-#app{display:flex; min-height:100vh;}
-#sidebar{
-  width:220px; background:var(--surface); border-right:1px solid var(--line);
-  padding:24px 14px; flex-shrink:0; position:sticky; top:0; height:100vh;
-}
-#sidebar h1{font-size:19px; padding:0 10px 22px; letter-spacing:.02em;}
-#sidebar h1 span{color:var(--loan);}
-.navitem{
-  display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px;
-  color:var(--muted); cursor:pointer; margin-bottom:2px; font-size:14px; font-weight:500;
-}
-.navitem.active{background:var(--surface-2); color:var(--text);}
-.navitem:hover{color:var(--text);}
-.navdot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
-
-#main{flex:1; padding:32px 40px; max-width:980px; margin:0 auto; width:100%;}
-.pagehead{margin-bottom:26px;}
-.pagehead h2{font-size:26px;}
-.pagehead p{color:var(--muted); margin-top:4px; font-size:14px;}
-
-.card{
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
-  padding:20px; margin-bottom:18px;
-}
-.card h3{font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:14px; font-weight:600; font-family:'Inter',sans-serif;}
-
-.statgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:18px;}
-.stat{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px;}
-.stat .label{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;}
-.stat .value{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;}
-.stat .value.pos{color:var(--income);}
-.stat .value.neg{color:var(--expense);}
-
-table{width:100%; border-collapse:collapse; font-size:14px;}
-th{text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--line-strong);}
-td{padding:9px 10px; border-bottom:1px solid var(--line);}
-tr:last-child td{border-bottom:none;}
-td.amt, th.amt{text-align:right; font-family:'IBM Plex Mono',monospace;}
-.tag{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600;}
-.tag.income{background:rgba(63,174,122,.15); color:var(--income);}
-.tag.expense{background:rgba(255,122,89,.15); color:var(--expense);}
-.tag.loan{background:rgba(92,138,196,.15); color:var(--loan);}
-.tag.rental{background:rgba(62,156,156,.15); color:var(--rental);}
-.tag.lottery{background:rgba(216,174,76,.15); color:var(--lottery);}
-
-.barrow{display:flex; align-items:center; gap:10px; margin-bottom:9px;}
-.barrow .barname{width:120px; font-size:13px; color:var(--muted); flex-shrink:0;}
-.barrow .bartrack{flex:1; height:9px; background:var(--surface-2); border-radius:5px; overflow:hidden;}
-.barrow .barfill{height:100%; border-radius:5px;}
-.barrow .barval{width:80px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; flex-shrink:0;}
-
-.chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
-.chip{padding:7px 14px; border-radius:20px; border:1px solid var(--line-strong); color:var(--muted); font-size:13px; cursor:pointer; font-weight:500;}
-.chip.active{background:var(--loan); border-color:var(--loan); color:#0B1524;}
-
-.typegrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
-.typecard{
-  border:1px solid var(--line-strong); border-radius:10px; padding:14px 10px; text-align:center;
-  cursor:pointer; background:var(--surface-2); font-size:13px; font-weight:600;
-}
-.typecard.active{border-color:var(--loan); background:rgba(92,138,196,.12); color:var(--loan);}
-
-.empty{color:var(--muted); font-size:14px; padding:30px 0; text-align:center;}
-.divider{height:1px; background:var(--line); margin:18px 0;}
-.subnote{font-size:12px; color:var(--muted); margin-top:6px;}
-.delbtn{background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 4px;}
-.delbtn:hover{color:var(--expense);}
-.toast{
-  position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface-2);
-  border:1px solid var(--line-strong); padding:10px 20px; border-radius:8px; font-size:13px; z-index:50;
-  opacity:0; pointer-events:none; transition:opacity .25s;
-}
-.toast.show{opacity:1;}
-.confirm-overlay{position:fixed; inset:0; background:rgba(6,11,20,.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px;}
-.confirm-overlay.show{display:flex;}
-.confirm-box{background:var(--surface); border:1px solid var(--line-strong); border-radius:12px; padding:22px; max-width:340px; width:100%;}
-.confirm-box p{font-size:14px; margin:0 0 18px; color:var(--text); line-height:1.5;}
-.confirm-actions{display:flex; gap:10px; justify-content:flex-end;}
-#confirmYes{background:var(--expense); border:none; color:#fff;}
-.monthgroup{border-bottom:1px solid var(--line); margin-bottom:2px;}
-.monthgroup:last-child{border-bottom:none;}
-.monthgroup summary{
-  cursor:pointer; padding:12px 4px; display:flex; align-items:center; gap:8px;
-  font-size:14px; font-weight:600; list-style:none;
-}
-.monthgroup summary::-webkit-details-marker{display:none;}
-.monthgroup summary .mgcaret{color:var(--muted); font-size:11px; transition:transform .15s; flex-shrink:0;}
-.monthgroup[open] summary .mgcaret{transform:rotate(90deg);}
-.monthgroup summary .mglabel{font-family:'Inter',sans-serif; font-weight:600;}
-.monthgroup summary .mgtotal{margin-left:auto; font-family:'IBM Plex Mono',monospace;}
-.monthbody{padding:6px 4px 16px 20px;}
-.netbadge{
-  display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
-  background:var(--surface-2); border-radius:8px; padding:9px 12px; margin:-2px 0 16px; border-left:3px solid var(--line-strong);
-}
-.netbadge-detail{font-size:12px; color:var(--muted);}
-.netbadge-value{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; white-space:nowrap;}
-.monthrow{padding:16px 4px; border-bottom:1px solid var(--line);}
-.monthrow:last-child{border-bottom:none;}
-.monthrow-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; gap:10px;}
-.monthrow-label{font-family:'Fraunces',serif; font-weight:600; font-size:16px;}
-.monthrow-net{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; white-space:nowrap;}
-.monthrow-sub{display:flex; gap:16px; font-size:12.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-bottom:10px;}
-.monthrow-balance{display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); border-radius:8px; padding:9px 12px;}
-.monthrow-balance .bal-label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
-.monthrow-balance .bal-val{font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:14px;}
-.monthrow-trend{font-size:11.5px; font-family:'IBM Plex Mono',monospace; text-align:right; margin-top:5px;}
-.cardgroup{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px; overflow:hidden;}
-.cardgroup summary{cursor:pointer; padding:18px 20px; display:flex; align-items:center; gap:10px; list-style:none; font-family:'Fraunces',serif; font-weight:600; font-size:16px;}
-.cardgroup summary::-webkit-details-marker{display:none;}
-.cardgroup summary .mgcaret{color:var(--muted); font-size:12px; transition:transform .15s; flex-shrink:0;}
-.cardgroup[open] summary .mgcaret{transform:rotate(90deg);}
-.cardgroup-body{padding:0 20px 20px;}
-.danger-card{border-color:rgba(255,122,89,.35) !important;}
-
-/* ---------- Mobile: bottom tab bar like an iOS app ---------- */
-#bottomnav{display:none;}
-@media (max-width: 780px){
-  #sidebar{display:none;}
-  #main{padding:18px 16px 90px; }
-  .statgrid{grid-template-columns:repeat(2,1fr);}
-  .typegrid{grid-template-columns:repeat(3,1fr);}
-  #bottomnav{
-    display:flex; position:fixed; bottom:0; left:0; right:0; background:var(--surface);
-    border-top:1px solid var(--line); padding:8px 4px calc(8px + env(safe-area-inset-bottom));
-    z-index:40; justify-content:space-around;
+  :root{
+    --paper:#F1F2F0;
+    --card:#FFFFFF;
+    --ink:#1F2933;
+    --ink-soft:#52606D;
+    --ink-faint:#8A94A0;
+    --line:#D5DBDF;
+    --line-soft:#E6E9EB;
+    --brand:#2F6F5E;
+    --brand-dark:#204E42;
+    --brand-tint:#E4F0EC;
+    --done:#2F9E7C;
+    --overdue:#D64550;
+    --duesoon:#C9861A;
+    --inprogress:#4C5FD6;
+    --notstarted:#9AA5B1;
+    --tab-inactive-bg:#E3E6E5;
+    --deadline-overdue-bg:#F9DCDF;
+    --deadline-soon-bg:#F6E4C6;
+    --overlay-bg:rgba(20,24,28,0.4);
+    --radius:10px;
+    --shadow-tab: 0 2px 0 rgba(0,0,0,0.06);
   }
-  #bottomnav .navitem{flex-direction:column; gap:3px; font-size:10px; padding:6px 4px; flex:1; text-align:center; border-radius:0; background:none !important;}
-  #bottomnav .navitem.active{color:var(--loan);}
-  #bottomnav .navdot{width:6px;height:6px;}
-  table{font-size:12.5px;}
-  th,td{padding:7px 6px;}
-  .barrow .barname{width:88px;}
-}
+  [data-theme="dark"]{
+    --paper:#000000;
+    --card:#141414;
+    --ink:#F5F6F7;
+    --ink-soft:#AEB6BF;
+    --ink-faint:#757E88;
+    --line:#2C2C2E;
+    --line-soft:#1D1D1F;
+    --brand:#34E0A1;
+    --brand-dark:#22B383;
+    --brand-tint:rgba(52,224,161,0.14);
+    --done:#39E29B;
+    --overdue:#FF5A67;
+    --duesoon:#FFB020;
+    --inprogress:#7C8CFF;
+    --notstarted:#8891A0;
+    --tab-inactive-bg:#1B1B1D;
+    --deadline-overdue-bg:#3A1418;
+    --deadline-soon-bg:#3A2A0A;
+    --overlay-bg:rgba(0,0,0,0.8);
+  }
+  *{box-sizing:border-box;}
+  html{background:var(--paper);}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .15s ease, color .15s ease;
+  }
+  #app{max-width:920px;margin:0 auto;padding:16px 20px 80px;}
+
+  .theme-toggle{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+
+  .masthead-compact{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+  .masthead-compact h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:21px;
+    margin:0;
+    line-height:1.15;
+    letter-spacing:-0.01em;
+  }
+  .masthead-meta{font-size:11px;color:var(--ink-soft);margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+
+  .masthead{margin-bottom:20px;}
+  .masthead h1{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:0;letter-spacing:-0.01em;}
+  .masthead .sub{font-size:13px;color:var(--ink-soft);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+
+  .controls-bar{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .mini-stats{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow-x:auto;}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+  .controls-expanded{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:12px;margin-bottom:14px;}
+  .controls-expanded .filters{margin-bottom:12px;}
+  .controls-expanded .sort-row{margin-bottom:0;}
+
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+  .btn{
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--ink);
+    padding:9px 14px;
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:transform .08s ease, background .15s ease;
+  }
+  .btn:hover{background:var(--line-soft);}
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .btn-primary:hover{background:var(--brand-dark);}
+  .btn-ghost{border-color:transparent;background:transparent;color:var(--ink-soft);}
+  .btn-ghost:hover{background:var(--line-soft);}
+  .btn-danger-text{border:none;background:none;color:var(--overdue);font-size:12px;font-weight:600;padding:4px 6px;}
+
+  /* Binder tabs */
+  .tabs{display:flex;gap:0;overflow-x:auto;padding:0 0 0 2px;margin-bottom:10px;}
+  .tab{
+    position:relative;
+    border:none;
+    padding:8px 18px 7px;
+    margin-left:-10px;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:13.5px;
+    color:var(--ink-soft);
+    background:var(--tab-inactive-bg);
+    clip-path:polygon(10% 0, 90% 0, 100% 100%, 0% 100%);
+    white-space:nowrap;
+    z-index:1;
+    transition:transform .12s ease;
+  }
+  .tab:first-child{margin-left:0;}
+  .tab:hover{transform:translateY(-2px);}
+  .tab.active{
+    background:var(--tab-color, var(--brand));
+    color:#fff;
+    z-index:5;
+    transform:translateY(-3px);
+    box-shadow:var(--shadow-tab);
+  }
+  .tab.add-tab{
+    background:transparent;
+    border:1.5px dashed var(--line);
+    clip-path:none;
+    border-radius:8px;
+    color:var(--ink-faint);
+    margin-left:6px;
+    padding:8px 14px;
+  }
+  .tab.add-tab:hover{color:var(--ink);border-color:var(--ink-faint);}
+  .tab-dot{display:none;}
+
+  /* Top-level segmented tabs (Tasks / Manage) */
+  .top-tabs{display:inline-flex;background:var(--line-soft);border-radius:9px;padding:3px;margin-bottom:18px;}
+  .top-tab{border:none;background:transparent;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:700;color:var(--ink-soft);font-family:'Inter',sans-serif;}
+  .top-tab.active{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+
+  /* Sort / view row */
+  .sort-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .sort-row select{min-width:170px;}
+  .sort-level-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+  .sort-level-row select{flex:1;}
+  .manage-pane{max-width:640px;}
+
+  /* Reports */
+  .report-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  @media (min-width:520px){ .report-stats{grid-template-columns:repeat(4,1fr);} }
+  .report-stat{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:12px 8px;text-align:center;}
+  .report-stat .num{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:var(--brand);}
+  .report-stat .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-top:3px;}
+  .report-card{background:var(--card);border:1px solid var(--line-soft);border-radius:12px;padding:16px;margin-bottom:14px;max-width:640px;}
+  .report-card h3{font-family:'Fraunces',serif;font-weight:600;font-size:15.5px;margin:0 0 13px;}
+  .report-empty{font-size:12.5px;color:var(--ink-faint);}
+
+  .hbar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .hbar-row:last-child{margin-bottom:0;}
+  .hbar-label{width:92px;flex-shrink:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hbar-track{flex:1;height:9px;background:var(--line-soft);border-radius:5px;overflow:hidden;}
+  .hbar-fill{height:100%;border-radius:5px;}
+  .hbar-value{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);width:30px;text-align:right;flex-shrink:0;}
+
+  .report-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .report-table th{text-align:left;font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;padding:0 8px 7px 0;border-bottom:1px solid var(--line-soft);}
+  .report-table td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line-soft);font-family:'IBM Plex Mono',monospace;}
+  .report-table td:first-child{font-family:'Inter',sans-serif;font-weight:700;}
+  .report-table tr:last-child td{border-bottom:none;}
+
+  .vbar-chart{display:flex;align-items:flex-end;gap:6px;height:120px;}
+  .vbar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .vbar{width:100%;max-width:26px;background:var(--brand);border-radius:4px 4px 0 0;min-height:3px;}
+  .vbar-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);margin-bottom:3px;}
+  .vbar-label{font-size:9px;color:var(--ink-faint);margin-top:5px;white-space:nowrap;}
+
+  .gran-row{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .gran-btn{border:1px solid var(--line);background:var(--paper);padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;color:var(--ink-soft);font-family:'Inter',sans-serif;}
+  .gran-btn.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .period-group{margin-bottom:22px;}
+  .period-group:last-child{margin-bottom:0;}
+  .period-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;}
+  .period-title{font-family:'Fraunces',serif;font-weight:600;font-size:14px;}
+  .period-count{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
+  .period-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .period-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;border:1.5px solid;background:var(--card);white-space:nowrap;}
+  .report-note{font-size:11px;color:var(--ink-faint);margin-top:10px;}
+  .heatmap{display:flex;gap:3px;overflow-x:auto;padding:2px 2px 8px;}
+  .heatmap-col{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
+  .heatmap-cell{width:12px;height:12px;border-radius:3px;background:var(--line-soft);}
+  .heatmap-cell.filled{background:var(--brand);}
+  .heatmap-cell.future{background:transparent;}
+  .heatmap-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-faint);margin-top:2px;}
+  .drilldown-select-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .drilldown-select-row select{flex:1;min-width:140px;}
+
+  /* Filters */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center;}
+  select, input[type=text], input[type=date], textarea{
+    font-family:'Inter',sans-serif;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:7px 10px;
+    font-size:13px;
+    color:var(--ink);
+    background:var(--card);
+  }
+  select{cursor:pointer;}
+  .filters select{min-width:120px;}
+
+  /* Task list */
+  .task-list{display:flex;flex-direction:column;gap:8px;}
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--ink-soft);
+    background:var(--card);
+    border:1px dashed var(--line);
+    border-radius:var(--radius);
+  }
+  .empty h3{font-family:'Fraunces',serif;font-weight:600;color:var(--ink);margin:0 0 6px;}
+
+  .task{
+    background:var(--card);
+    border:1px solid var(--line-soft);
+    border-left:4px solid var(--status-color, var(--notstarted));
+    border-radius:8px;
+    padding:12px 14px;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+  }
+  .task.done{opacity:0.68;}
+  .task-check{
+    width:20px;height:20px;border-radius:50%;
+    border:2px solid var(--status-color, var(--notstarted));
+    flex-shrink:0;margin-top:2px;background:none;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--status-color, var(--notstarted));
+    font-size:12px;font-weight:700;
+    padding:0;
+  }
+  .task.done .task-check{background:var(--status-color);color:#fff;}
+  .task-body{flex:1;min-width:0;}
+  .task-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;}
+  .task-title{font-size:14.5px;font-weight:600;}
+  .task.done .task-title{text-decoration:line-through;}
+  .task-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center;}
+  .pill{
+    font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+    white-space:nowrap;
+  }
+  .pill-child{font-weight:700;background-color:#fff;}
+  .pill-subject{color:#fff;}
+  .pill-platform{background:transparent;font-weight:700;}
+  .pill-type{font-weight:700;}
+  .pill-type-recurring{background:#E7ECFD;color:#3355D8;}
+  .pill-type-adhoc{background:#FDF0DA;color:#B5730A;}
+  .pill-deadline{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .deadline-overdue{background:var(--deadline-overdue-bg);color:var(--overdue);}
+  .deadline-soon{background:var(--deadline-soon-bg);color:var(--duesoon);}
+  .deadline-ok{background:var(--line-soft);color:var(--ink-soft);}
+
+  .type-swatch{width:16px;height:16px;border-radius:3px;display:inline-block;vertical-align:-3px;margin-right:6px;flex-shrink:0;}
+  .type-swatch.solid{background:var(--sw-color);}
+  .type-swatch.outline{background:var(--card);border:2px solid var(--sw-color);}
+  .type-swatch.stripe{background-image:repeating-linear-gradient(45deg, var(--sw-color) 0 3px, #fff 3px 6px);border:1px solid var(--sw-color);}
+
+  .manage-key{font-size:12px;color:var(--ink-soft);margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;}
+  .manage-key span{display:flex;align-items:center;}
+  .manage-section{margin-bottom:20px;}
+  .manage-section h3{font-family:'Fraunces',serif;font-size:15px;margin:0 0 8px;}
+  .manage-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .manage-chip{display:flex;align-items:center;font-size:12.5px;font-weight:600;padding:5px 6px 5px 8px;border-radius:20px;background:var(--paper);border:1px solid var(--line-soft);}
+  .manage-chip button{background:none;border:none;color:var(--ink-faint);margin-left:6px;font-size:12px;padding:0 2px;line-height:1;}
+  .manage-chip button:hover{color:var(--overdue);}
+  .manage-add-row{display:flex;gap:6px;}
+  .manage-add-row input{flex:1;}
+
+  .progress-row{display:flex;align-items:center;gap:8px;margin-top:9px;}
+  .progress-track{flex:1;height:7px;background:var(--line-soft);border-radius:6px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--status-color, var(--brand));border-radius:6px;transition:width .2s ease;}
+  input[type=range].pct-input{flex:1;height:16px;accent-color:var(--brand);}
+  .pct-label{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;min-width:34px;text-align:right;}
+
+  .task-actions{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0;}
+  .icon-btn{background:none;border:none;color:var(--ink-faint);font-size:15px;padding:2px 4px;}
+  .icon-btn:hover{color:var(--ink);}
+
+  /* Modal */
+  .overlay{
+    position:fixed;inset:0;background:var(--overlay-bg);
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;z-index:50;
+  }
+  .modal{
+    background:var(--card);border-radius:14px;padding:22px 24px;
+    width:100%;max-width:440px;max-height:90vh;overflow-y:auto;
+  }
+  .modal h2{font-family:'Fraunces',serif;font-size:19px;margin:0 0 16px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+  .field input, .field select, .field textarea{width:100%;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .radio-group{display:flex;gap:14px;margin-top:2px;}
+  .radio-group label{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;color:var(--ink);}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .swatch-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+  .swatch{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
+  .swatch.selected{border-color:var(--ink);}
+
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:9px 16px;border-radius:8px;
+    font-size:13px;z-index:100;opacity:0;transition:opacity .2s ease;
+  }
+  .toast.show{opacity:1;}
+
+  .loading{text-align:center;padding:60px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+
+  /* Onboarding */
+  .onboard{max-width:420px;margin:60px auto;padding:0 20px;}
+  .onboard h1{font-family:'Fraunces',serif;font-size:26px;margin:0 0 6px;}
+  .onboard p{color:var(--ink-soft);font-size:14px;line-height:1.5;margin:0 0 20px;}
+  .onboard-card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:22px;margin-bottom:14px;}
+  .onboard-card h3{font-family:'Fraunces',serif;font-size:16px;margin:0 0 10px;}
+  .onboard input{width:100%;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:.15em;text-transform:uppercase;padding:10px;margin-bottom:10px;}
+  .onboard-divider{text-align:center;font-size:11px;color:var(--ink-faint);margin:14px 0;text-transform:uppercase;letter-spacing:.05em;}
+  .code-display{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;letter-spacing:.1em;text-align:center;background:var(--brand-tint);color:var(--brand-dark);border-radius:10px;padding:16px;margin-bottom:12px;}
+  .profile-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .profile-btn{flex:1;min-width:120px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:16px 10px;text-align:center;font-family:'Fraunces',serif;font-weight:600;font-size:15px;}
+  .profile-btn:active{transform:scale(0.97);}
+  .profile-switcher{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);background:none;border:none;padding:4px 0;text-decoration:underline;}
+  .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--done);margin-right:5px;vertical-align:1px;}
+  .sync-dot.offline{background:var(--overdue);}
+  .status-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+
+  @media (max-width:600px){
+    .stamps{grid-template-columns:repeat(3,1fr);}
+    .stamp:nth-child(4), .stamp:nth-child(5){display:none;}
+    .task-top{flex-direction:column;align-items:flex-start;}
+  }
 </style>
 </head>
 <body>
-<div id="app">
-  <div id="sidebar">
-    <h1>Led<span>ger</span></h1>
-    <div id="navlist"></div>
-  </div>
-  <div id="main"></div>
-</div>
-<div id="bottomnav"></div>
-<div class="toast" id="toast"></div>
-<div class="confirm-overlay" id="confirmOverlay">
-  <div class="confirm-box">
-    <p id="confirmMsg"></p>
-    <div class="confirm-actions">
-      <button class="btn btn-ghost" id="confirmNo">Cancel</button>
-      <button class="btn" id="confirmYes">Delete</button>
-    </div>
-  </div>
-</div>
+<div id="app"><div class="loading">Loading the ledger…</div></div>
 
 <script>
-/* ============ CONFIG ============ */
-const NAV = [
-  {id:'reports', label:'Reports'},
-  {id:'dashboard', label:'Transactions'},
-  {id:'add', label:'Add Entry'},
-  {id:'loans', label:'Loans & Setup'},
-];
-const DEFAULT_CATEGORIES = ['Groceries','Utilities','Transport','Dining','Entertainment','Health','Shopping','Insurance','Subscriptions','Education','Salary','Bonus','Interest','Gift','Side Income','Other Income','Other Expense','Other'];
-const TYPE_META = {
-  expense:{label:'Expense', color:'var(--expense)', tag:'expense'},
-  income:{label:'Income', color:'var(--income)', tag:'income'},
-  loan_payment:{label:'Loan Payment', color:'var(--loan)', tag:'loan'},
-  rental_income:{label:'Rental Income', color:'var(--rental)', tag:'rental'},
-  lottery_expense:{label:'Lottery Spend', color:'var(--lottery)', tag:'lottery'},
-  lottery_income:{label:'Lottery Win', color:'var(--lottery)', tag:'lottery'},
-};
-
-/* ============ STATE ============ */
-let state = { transactions:[], loans:[], categories:[...DEFAULT_CATEGORIES], settings:{ bankOpeningBalance:0, bankOpeningDate: '1970-01-01', bankSnapshots:[] }, loaded:false };
-let currentTab = 'reports';
-let reportView = 'monthly';
-let addType = 'expense';
-let editingTxId = null;
-let editingLoanId = null;
-let editingCheckpoint = null; // {account, id}
-
-/* Works inside Claude.ai (uses window.storage) AND standalone anywhere else
-   (falls back to the browser's own localStorage) — same file, either place. */
-const storage = (typeof window.storage === 'object' && window.storage && typeof window.storage.get === 'function')
-  ? window.storage
-  : {
-      async get(key){ try{ const v = localStorage.getItem('ledger:'+key); return v!==null ? {key, value:v} : null; }catch(e){ return null; } },
-      async set(key, value){ try{ localStorage.setItem('ledger:'+key, value); return {key, value}; }catch(e){ return null; } },
-      async delete(key){ try{ localStorage.removeItem('ledger:'+key); return {key, deleted:true}; }catch(e){ return null; } },
-    };
-let categoryViewMode = 'month'; // 'month' or 'category'
-let moreReportView = 'networth';
-
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-function fmt(n){ n = Number(n)||0; const neg = n<0; n=Math.abs(n); return (neg?'-':'')+'$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function monthKey(d){ return d.slice(0,7); }
-function monthLabel(k){ const [y,m]=k.split('-'); return new Date(y,m-1,1).toLocaleDateString(undefined,{month:'short',year:'numeric'}); }
-function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
-function showConfirm(message, onYes, yesLabel){
-  const overlay = document.getElementById('confirmOverlay');
-  document.getElementById('confirmMsg').textContent = message;
-  const yesBtn = document.getElementById('confirmYes');
-  yesBtn.textContent = yesLabel || 'Delete';
-  overlay.classList.add('show');
-  const cleanup = ()=> overlay.classList.remove('show');
-  yesBtn.onclick = ()=>{ cleanup(); onYes(); };
-  document.getElementById('confirmNo').onclick = cleanup;
-}
-
-/* ============ STORAGE ============ */
-async function loadState(){
-  try{ const r = await storage.get('transactions'); state.transactions = r? JSON.parse(r.value): []; }catch(e){ state.transactions=[]; }
-  try{ const r = await storage.get('loans'); state.loans = r? JSON.parse(r.value): []; }catch(e){ state.loans=[]; }
-  try{ const r = await storage.get('settings'); state.settings = r? JSON.parse(r.value): {bankOpeningBalance:0,bankOpeningDate:'1970-01-01',bankSnapshots:[]}; }catch(e){ state.settings={bankOpeningBalance:0,bankOpeningDate:'1970-01-01',bankSnapshots:[]}; }
-  try{
-    const r = await storage.get('categories');
-    const parsed = r? JSON.parse(r.value): [...DEFAULT_CATEGORIES];
-    state.categories = Array.isArray(parsed) ? parsed : Array.from(new Set([...(parsed.expense||[]), ...(parsed.income||[])]));
-  }catch(e){ state.categories = [...DEFAULT_CATEGORIES]; }
-  if(!state.settings.bankSnapshots) state.settings.bankSnapshots = [];
-  state.loans.forEach(l=>{ if(!l.snapshots) l.snapshots = []; });
-  ['Other Income','Other Expense','Lottery'].forEach(c=>{ if(!state.categories.includes(c)) state.categories.push(c); });
-  let migrated = false;
-  state.transactions.forEach(t=>{
-    if(t.type==='lottery_expense'){ t.type='expense'; t.category='Lottery'; migrated=true; }
-    if(t.type==='lottery_income'){ t.type='income'; t.category='Lottery'; migrated=true; }
-  });
-  state.transactions.forEach(t=>{
-    if(!t.isBalanceCheckpoint && typeof t.notes==='string' && t.notes.indexOf('Auto-added to reconcile')===0){
-      t.isBalanceCheckpoint = true;
-      t.checkpointBalance = calcBankBalanceAsOf(t.date);
-      migrated = true;
-    }
-  });
-  if(migrated) saveTransactions();
-  state.loaded = true;
-  render();
-}
-async function saveTransactions(){ try{ await storage.set('transactions', JSON.stringify(state.transactions)); }catch(e){ showToast('Save failed — try again'); } }
-async function saveLoans(){ try{ await storage.set('loans', JSON.stringify(state.loans)); }catch(e){ showToast('Save failed — try again'); } }
-async function saveSettings(){ try{ await storage.set('settings', JSON.stringify(state.settings)); }catch(e){ showToast('Save failed — try again'); } }
-async function saveCategories(){ try{ await storage.set('categories', JSON.stringify(state.categories)); }catch(e){ showToast('Save failed — try again'); } }
-
-async function addTransaction(tx){ tx.id = uid(); state.transactions.push(tx); await saveTransactions(); showToast('Entry saved'); currentTab='dashboard'; render(); }
-async function deleteTransaction(id){ state.transactions = state.transactions.filter(t=>t.id!==id); await saveTransactions(); render(); }
-async function addLoan(loan){ loan.id = uid(); state.loans.push(loan); await saveLoans(); render(); }
-async function deleteLoan(id){ state.loans = state.loans.filter(l=>l.id!==id); await saveLoans(); render(); }
-
-/* ============ DERIVED DATA ============ */
-function cashDelta(t){
-  if(t.type==='income'||t.type==='rental_income'||t.type==='lottery_income') return t.amount;
-  if(t.type==='expense'||t.type==='loan_payment'||t.type==='lottery_expense') return -t.amount;
-  return 0;
-}
-function sortedTx(){ return [...state.transactions].sort((a,b)=> a.date.localeCompare(b.date) || a.id.localeCompare(b.id)); }
-
-/* Merge opening balance + checkpoints + transactions into one chronological
-   timeline. A checkpoint resets the running balance to a known value (so you
-   can enter "balance was $X on this date" instead of re-entering years of
-   old transactions), and everything after it accumulates normally on top. */
-function mergeTimeline(openingDate, openingBalance, checkpoints, txEvents){
-  const items = [];
-  items.push({date:openingDate||'', rank:0, kind:'snapshot', balance:Number(openingBalance)||0, label:'Opening balance'});
-  (checkpoints||[]).forEach(c=> items.push({date:c.date, rank:0, kind:'snapshot', balance:Number(c.balance)||0, label:'Balance checkpoint', cpId:c.id}));
-  (txEvents||[]).forEach(e=> items.push({date:e.date, rank:1, kind:'tx', delta:e.delta, label:e.label, id:e.id}));
-  items.sort((a,b)=> a.date.localeCompare(b.date) || a.rank-b.rank);
-  let bal = 0;
-  const rows = [];
-  for(const it of items){
-    if(it.kind==='snapshot'){ bal = it.balance; rows.push({date:it.date, label:it.label, delta:0, balance:bal, checkpoint:true, cpId:it.cpId}); }
-    else { bal += it.delta; rows.push({date:it.date, label:it.label, delta:it.delta, balance:bal, id:it.id}); }
-  }
-  return rows;
-}
-function bankTimeline(){
-  const events = sortedTx().map(t=>({date:t.date, delta:cashDelta(t), label:describeTx(t), id:t.id}));
-  return mergeTimeline(state.settings.bankOpeningDate, state.settings.bankOpeningBalance, state.settings.bankSnapshots, events);
-}
-function calcBankBalanceAsOf(date){
-  const tl = bankTimeline();
-  let bal = tl.length ? tl[0].balance : 0;
-  for(const row of tl){ if(row.date <= date) bal = row.balance; else break; }
-  return bal;
-}
-function loanTimeline(loan){
-  const events = sortedTx().filter(t=>t.type==='loan_payment' && t.loanId===loan.id).map(t=>{
-    const principal = (t.principal!==undefined && t.principal!==null && t.principal!=='') ? Number(t.principal) : null;
-    const label = principal!==null
-      ? `Payment ${fmt(t.amount)} (principal ${fmt(principal)})`
-      : `Payment ${fmt(t.amount)} (principal/interest split unknown — balance unchanged, relying on checkpoints)`;
-    return {date:t.date, delta: principal!==null ? -principal : 0, label, id:t.id};
-  });
-  return mergeTimeline(loan.startDate, loan.openingBalance, loan.snapshots, events);
-}
-function loanBalance(loan){
-  const tl = loanTimeline(loan);
-  return tl.length? tl[tl.length-1].balance : (Number(loan.openingBalance)||0);
-}
-function loanBalanceAsOf(loan, date){
-  const tl = loanTimeline(loan);
-  let bal = tl.length ? tl[0].balance : (Number(loan.openingBalance)||0);
-  for(const row of tl){ if(row.date<=date) bal = row.balance; else break; }
-  return bal;
-}
-function totalLoanBalanceAsOf(date){
-  return state.loans.reduce((s,l)=>s+loanBalanceAsOf(l,date),0);
-}
-function netWorthAsOf(date){
-  return calcBankBalanceAsOf(date) - totalLoanBalanceAsOf(date);
-}
-function describeTx(t){
-  const meta = TYPE_META[t.type];
-  if(t.type==='loan_payment'){ const l=state.loans.find(x=>x.id===t.loanId); return 'Loan payment — '+(l?l.name:'Unknown loan'); }
-  if(t.type==='rental_income'){ const l=state.loans.find(x=>x.id===t.loanId); return 'Rental income — '+(l?l.name:'Unlinked property'); }
-  if(t.category) return meta.label+' — '+t.category;
-  return meta.label;
-}
-function monthlyTotals(){
-  const map = {};
-  for(const t of state.transactions){
-    const mk = monthKey(t.date);
-    if(!map[mk]) map[mk] = {income:0, expense:0};
-    const d = cashDelta(t);
-    if(d>=0) map[mk].income += d; else map[mk].expense += -d;
-  }
-  return Object.keys(map).sort().map(k=>({month:k, ...map[k], net: map[k].income-map[k].expense}));
-}
-function monthlyCategoryMap(){
-  const income = {}, expense = {};
-  for(const t of state.transactions){
-    if(t.type!=='income' && t.type!=='expense') continue;
-    if(!t.category) continue;
-    const mk = monthKey(t.date);
-    const bucket = t.type==='income' ? income : expense;
-    if(!bucket[mk]) bucket[mk] = {};
-    bucket[mk][t.category] = (bucket[mk][t.category]||0) + t.amount;
-  }
-  return {income, expense};
-}
-function transposeToCategory(monthMap){
-  // monthMap: {month: {cat: amt}} -> {cat: {month: amt}}
-  const byCat = {};
-  for(const mk in monthMap){ for(const cat in monthMap[mk]){ if(!byCat[cat]) byCat[cat] = {}; byCat[cat][mk] = monthMap[mk][cat]; } }
-  return byCat;
-}
-function reportCategories(){
-  return `
-  <div class="chips" style="margin-bottom:10px;">
-    <div class="chip ${categoryViewMode==='month'?'active':''}" data-catview="month">Month → categories</div>
-    <div class="chip ${categoryViewMode==='category'?'active':''}" data-catview="category">Category → months</div>
-  </div>
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all</button>
-  </div>
-  ${categoryViewMode==='month' ? reportCategoriesByMonth() : reportCategoriesByCategory()}
-  `;
-}
-function netBadge(detail, net){
-  const sign = net>=0 ? '+' : '';
-  return `<div class="netbadge" style="border-left-color:${net>=0?'var(--income)':'var(--expense)'}">
-    <div class="netbadge-detail">${detail}</div>
-    <div class="netbadge-value" style="color:${net>=0?'var(--income)':'var(--expense)'}">Net ${sign}${fmt(net)}</div>
-  </div>`;
-}
-function reportCategoriesByMonth(){
-  const {income, expense} = monthlyCategoryMap();
-  const incomeMonths = Object.keys(income).sort().reverse();
-  const expenseMonths = Object.keys(expense).sort().reverse();
-  return `
-  <div class="card">
-    <h3>Monthly income by category</h3>
-    <p class="subnote" style="margin-bottom:10px;">Tap a month to see the categories inside it.</p>
-    ${incomeMonths.length? incomeMonths.map((mk,i)=>{
-      const cats = Object.entries(income[mk]).sort((a,b)=>b[1]-a[1]);
-      const total = cats.reduce((s,[,v])=>s+v,0);
-      const max = Math.max(...cats.map(c=>c[1]),1);
-      return `<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${monthLabel(mk)}</span><span class="mgtotal" style="color:var(--income);">+${fmt(total)}</span></summary>
-        <div class="monthbody">
-        ${cats.map(([cat,val])=>{
-          const spent = (expense[mk] && expense[mk][cat]) || 0;
-          const net = val - spent;
-          return spent>0
-            ? `<div class="barrow"><div class="barname">${cat}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--income)"></div></div><div class="barval" style="color:var(--income)">+${fmt(val)}</div></div>${netBadge('Received +'+fmt(val)+' &nbsp;·&nbsp; Spent -'+fmt(spent), net)}`
-            : `<div class="barrow"><div class="barname">${cat}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--income)"></div></div><div class="barval" style="color:var(--income)">+${fmt(val)}</div></div>`;
-        }).join('')}
-        </div>
-      </details>`;
-    }).join('') : '<div class="empty">No income yet.</div>'}
-  </div>
-  <div class="card">
-    <h3>Monthly expense by category</h3>
-    <p class="subnote" style="margin-bottom:10px;">Tap a month to see the categories inside it. Expenses show as negative — if a category also had income that month (e.g. a refund), the net is highlighted.</p>
-    ${expenseMonths.length? expenseMonths.map((mk,i)=>{
-      const cats = Object.entries(expense[mk]).sort((a,b)=>b[1]-a[1]);
-      const total = cats.reduce((s,[,v])=>s+v,0);
-      const max = Math.max(...cats.map(c=>c[1]),1);
-      return `<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${monthLabel(mk)}</span><span class="mgtotal" style="color:var(--expense);">-${fmt(total)}</span></summary>
-        <div class="monthbody">
-        ${cats.map(([cat,val])=>{
-          const received = (income[mk] && income[mk][cat]) || 0;
-          const net = received - val;
-          return received>0
-            ? `<div class="barrow"><div class="barname">${cat}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--expense)"></div></div><div class="barval" style="color:var(--expense)">-${fmt(val)}</div></div>${netBadge('Spent -'+fmt(val)+' &nbsp;·&nbsp; Refunded +'+fmt(received), net)}`
-            : `<div class="barrow"><div class="barname">${cat}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--expense)"></div></div><div class="barval" style="color:var(--expense)">-${fmt(val)}</div></div>`;
-        }).join('')}
-        </div>
-      </details>`;
-    }).join('') : '<div class="empty">No expenses yet.</div>'}
-  </div>`;
-}
-function reportCategoriesByCategory(){
-  const {income, expense} = monthlyCategoryMap();
-  const incomeByCat = transposeToCategory(income);
-  const expenseByCat = transposeToCategory(expense);
-  const incomeCats = Object.keys(incomeByCat).sort((a,b)=>{
-    const ta = Object.values(incomeByCat[a]).reduce((s,v)=>s+v,0);
-    const tb = Object.values(incomeByCat[b]).reduce((s,v)=>s+v,0);
-    return tb-ta;
-  });
-  const expenseCats = Object.keys(expenseByCat).sort((a,b)=>{
-    const ta = Object.values(expenseByCat[a]).reduce((s,v)=>s+v,0);
-    const tb = Object.values(expenseByCat[b]).reduce((s,v)=>s+v,0);
-    return tb-ta;
-  });
-  return `
-  <div class="card">
-    <h3>Income categories, monthwise</h3>
-    <p class="subnote" style="margin-bottom:10px;">Tap a category to see it broken down by month.</p>
-    ${incomeCats.length? incomeCats.map((cat,i)=>{
-      const months = Object.entries(incomeByCat[cat]).sort((a,b)=>a[0].localeCompare(b[0])).reverse();
-      const total = months.reduce((s,[,v])=>s+v,0);
-      const max = Math.max(...months.map(m=>m[1]),1);
-      return `<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${cat}</span><span class="mgtotal" style="color:var(--income);">+${fmt(total)}</span></summary>
-        <div class="monthbody">
-        ${months.map(([mk,val])=>{
-          const spent = (expenseByCat[cat] && expenseByCat[cat][mk]) || 0;
-          const net = val - spent;
-          return spent>0
-            ? `<div class="barrow"><div class="barname">${monthLabel(mk)}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--income)"></div></div><div class="barval" style="color:var(--income)">+${fmt(val)}</div></div>${netBadge('Received +'+fmt(val)+' &nbsp;·&nbsp; Spent -'+fmt(spent), net)}`
-            : `<div class="barrow"><div class="barname">${monthLabel(mk)}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--income)"></div></div><div class="barval" style="color:var(--income)">+${fmt(val)}</div></div>`;
-        }).join('')}
-        </div>
-      </details>`;
-    }).join('') : '<div class="empty">No income yet.</div>'}
-  </div>
-  <div class="card">
-    <h3>Expense categories, monthwise</h3>
-    <p class="subnote" style="margin-bottom:10px;">Tap a category to see it broken down by month. Expenses show as negative — months with income in the same category (e.g. a refund) show the net highlighted.</p>
-    ${expenseCats.length? expenseCats.map((cat,i)=>{
-      const months = Object.entries(expenseByCat[cat]).sort((a,b)=>a[0].localeCompare(b[0])).reverse();
-      const total = months.reduce((s,[,v])=>s+v,0);
-      const max = Math.max(...months.map(m=>m[1]),1);
-      return `<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${cat}</span><span class="mgtotal" style="color:var(--expense);">-${fmt(total)}</span></summary>
-        <div class="monthbody">
-        ${months.map(([mk,val])=>{
-          const received = (incomeByCat[cat] && incomeByCat[cat][mk]) || 0;
-          const net = received - val;
-          return received>0
-            ? `<div class="barrow"><div class="barname">${monthLabel(mk)}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--expense)"></div></div><div class="barval" style="color:var(--expense)">-${fmt(val)}</div></div>${netBadge('Spent -'+fmt(val)+' &nbsp;·&nbsp; Refunded +'+fmt(received), net)}`
-            : `<div class="barrow"><div class="barname">${monthLabel(mk)}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--expense)"></div></div><div class="barval" style="color:var(--expense)">-${fmt(val)}</div></div>`;
-        }).join('')}
-        </div>
-      </details>`;
-    }).join('') : '<div class="empty">No expenses yet.</div>'}
-  </div>`;
-}
-function investmentPositions(){
-  const invLoans = state.loans.filter(l=>l.type==='investment');
-  const result = {};
-  for(const l of invLoans){
-    const monthMap = {};
-    for(const t of state.transactions){
-      if(t.loanId!==l.id) continue;
-      const mk = monthKey(t.date);
-      if(!monthMap[mk]) monthMap[mk] = {rental:0, payment:0};
-      if(t.type==='rental_income') monthMap[mk].rental += t.amount;
-      if(t.type==='loan_payment') monthMap[mk].payment += t.amount;
-    }
-    result[l.id] = {loan:l, months: Object.keys(monthMap).sort().map(k=>({month:k, ...monthMap[k], net: monthMap[k].rental - monthMap[k].payment}))};
-  }
-  return result;
-}
-function lotteryTotals(){
-  const isLottery = t => t.category==='Lottery' && (t.type==='income' || t.type==='expense');
-  const income = state.transactions.filter(t=>isLottery(t) && t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const expense = state.transactions.filter(t=>isLottery(t) && t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const monthMap={};
-  for(const t of state.transactions){
-    if(!isLottery(t)) continue;
-    const mk = monthKey(t.date);
-    if(!monthMap[mk]) monthMap[mk]={income:0,expense:0};
-    if(t.type==='income') monthMap[mk].income += t.amount; else monthMap[mk].expense += t.amount;
-  }
-  return {income, expense, net:income-expense, months: Object.keys(monthMap).sort().map(k=>({month:k,...monthMap[k], net: monthMap[k].income-monthMap[k].expense}))};
-}
-
-/* ============ RENDER: SHELL ============ */
-function render(){
-  renderNav();
-  const main = document.getElementById('main');
-  if(!state.loaded){ main.innerHTML = '<div class="empty">Loading your ledger…</div>'; return; }
-  if(currentTab==='dashboard') main.innerHTML = pageDashboard();
-  else if(currentTab==='add') main.innerHTML = pageAdd();
-  else if(currentTab==='reports') main.innerHTML = pageReports();
-  else if(currentTab==='loans') main.innerHTML = pageLoans();
-  attachHandlers();
-}
-function renderNav(){
-  const html = NAV.map(n=>`<div class="navitem ${currentTab===n.id?'active':''}" data-nav="${n.id}"><span class="navdot"></span>${n.label}</div>`).join('');
-  document.getElementById('navlist').innerHTML = html;
-  document.getElementById('bottomnav').innerHTML = html;
-  document.querySelectorAll('[data-nav]').forEach(el=>{
-    el.onclick = ()=>{ currentTab = el.dataset.nav; if(currentTab==='add') editingTxId=null; if(currentTab==='loans'){ editingLoanId=null; editingCheckpoint=null; } render(); window.scrollTo(0,0); };
-  });
-}
-
-/* ============ PAGE: DASHBOARD ============ */
-function pageDashboard(){
-  const allTx = sortedTx().reverse();
-  if(!allTx.length){
-    return `<div class="pagehead"><h2>Transactions</h2><p>Everything you've entered, most recent first</p></div>
-    <div class="card"><div class="empty">No entries yet. Add your first one from "Add Entry".</div></div>`;
-  }
-  const yearMap = {};
-  allTx.forEach(t=>{ const yr = (t.date||'').slice(0,4) || 'Unknown'; if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(t); });
-  const years = Object.keys(yearMap).sort().reverse();
-  return `
-  <div class="pagehead"><h2>Transactions</h2><p>Everything you've entered, most recent first</p></div>
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="txGroups" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="txGroups" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>
-  <div class="card" id="txGroups">
-  ${years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} entr${yearMap[yr].length===1?'y':'ies'}</span></summary>
-    <div class="monthbody">${renderTxTable(yearMap[yr], true)}</div>
-  </details>`).join('')}
-  </div>
-  `;
-}
-function editDeleteButtons(t){
-  if(t.isBalanceCheckpoint) return `<button class="delbtn" data-editcheckpoint="banktx::${t.id}" title="Edit balance">✎</button><button class="delbtn" data-del="${t.id}" title="Delete">✕</button>`;
-  return `<button class="delbtn" data-edittx="${t.id}" title="Edit">✎</button><button class="delbtn" data-del="${t.id}" title="Delete">✕</button>`;
-}
-function renderTxTable(list, deletable){
-  return `<table><thead><tr><th>Date</th><th>Type</th><th>Detail</th><th class="amt">Amount</th>${deletable?'<th></th>':''}</tr></thead><tbody>
-  ${list.map(t=>{
-    const meta = TYPE_META[t.type];
-    const d = cashDelta(t);
-    return `<tr>
-      <td>${t.date}</td>
-      <td><span class="tag ${meta.tag}">${meta.label}</span></td>
-      <td>${describeTx(t)}${t.notes?' <span style="color:var(--muted)">— '+escapeHtml(t.notes)+'</span>':''}</td>
-      <td class="amt ${d>=0?'pos':'neg'}" style="color:${d>=0?'var(--income)':'var(--expense)'}">${d>=0?'+':''}${fmt(d)}</td>
-      ${deletable?`<td style="white-space:nowrap;">${editDeleteButtons(t)}</td>`:''}
-    </tr>`;
-  }).join('')}
-  </tbody></table>`;
-}
-function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-function parseCSV(text){
-  const rows = [];
-  let i=0, field='', row=[], inQuotes=false;
-  const pushField = ()=>{ row.push(field); field=''; };
-  const pushRow = ()=>{ rows.push(row); row=[]; };
-  while(i<text.length){
-    const c = text[i];
-    if(inQuotes){
-      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i+=2; continue; } inQuotes=false; i++; continue; }
-      field+=c; i++; continue;
-    } else {
-      if(c==='"'){ inQuotes=true; i++; continue; }
-      if(c===','){ pushField(); i++; continue; }
-      if(c==='\r'){ i++; continue; }
-      if(c==='\n'){ pushField(); pushRow(); i++; continue; }
-      field+=c; i++; continue;
-    }
-  }
-  if(field.length || row.length){ pushField(); pushRow(); }
-  if(!rows.length) return [];
-  const headers = rows[0].map(h=>h.trim().toLowerCase());
-  return rows.slice(1).filter(r=>r.some(c=>(c||'').trim()!=='')).map(r=>{
-    const obj = {};
-    headers.forEach((h,idx)=> obj[h] = (r[idx]||'').trim());
-    return obj;
-  });
-}
-
-/* ============ PAGE: ADD ENTRY ============ */
-function pageAdd(){
-  const types = Object.keys(TYPE_META).filter(t=>t!=='lottery_expense' && t!=='lottery_income');
-  const invLoans = state.loans;
-  const editing = editingTxId ? state.transactions.find(t=>t.id===editingTxId) : null;
-  if(editing) addType = editing.type;
-  const v = (field, fallback)=> editing ? (editing[field] ?? fallback ?? '') : (fallback ?? '');
-  return `
-  <div class="pagehead"><h2>${editing?'Edit Entry':'Add Entry'}</h2><p>${editing?'Update the details below':'Choose an entry type, then fill in the details'}</p></div>
-  <div class="typegrid">
-    ${types.map(t=>`<div class="typecard ${addType===t?'active':''} ${editing?'disabled':''}" data-type="${t}" style="${editing?'opacity:.4; pointer-events:none;':''}">${TYPE_META[t].label}</div>`).join('')}
-  </div>
-  <div class="card">
-    <form id="entryForm">
-      <div class="field"><label>Date</label><input type="date" name="date" value="${v('date', todayStr())}" required></div>
-
-      ${addType==='expense' ? `
-        <div class="field"><label>Category</label><select name="category" id="catSelect">${state.categories.map(c=>`<option ${v('category')===c?'selected':''}>${c}</option>`).join('')}<option value="__new__">+ Add new category…</option></select>
-        <input type="text" name="newCategory" id="newCatInput" placeholder="New category name" style="display:none; margin-top:8px;"></div>
-        <div class="field"><label>Amount</label><input type="number" step="0.01" min="0" name="amount" required placeholder="0.00" value="${v('amount')}"></div>
-      ` : ''}
-
-      ${addType==='income' ? `
-        <div class="field"><label>Category</label><select name="category" id="catSelect">${state.categories.map(c=>`<option ${v('category')===c?'selected':''}>${c}</option>`).join('')}<option value="__new__">+ Add new category…</option></select>
-        <input type="text" name="newCategory" id="newCatInput" placeholder="New category name" style="display:none; margin-top:8px;"></div>
-        <div class="field"><label>Amount</label><input type="number" step="0.01" min="0" name="amount" required placeholder="0.00" value="${v('amount')}"></div>
-      ` : ''}
-
-      ${addType==='loan_payment' ? `
-        ${invLoans.length? `
-        <div class="field"><label>Home loan</label><select name="loanId">${invLoans.map(l=>`<option value="${l.id}" ${v('loanId')===l.id?'selected':''}>${l.name} (${l.type==='investment'?'Investment':'Owner-occupied'})</option>`).join('')}</select></div>
-        <div class="field"><label>Amount paid (principal + interest)</label><input type="number" step="0.01" min="0" name="amount" required placeholder="0.00" value="${v('amount')}"></div>
-        <div class="field"><label>Principal portion (optional)</label><input type="number" step="0.01" min="0" name="principal" placeholder="Leave blank if unknown" value="${v('principal')}">
-        <div class="subnote">Only the principal reduces your loan balance — interest doesn't. If you don't know the split, leave this blank: the payment still counts as an expense, but won't touch the loan balance. Instead, just add a <strong>balance checkpoint</strong> in Loans & Setup once a month with the real balance from your statement — which is exactly what you're already doing, and is the more reliable approach when the split is unknown.</div></div>
-        ` : `<div class="empty">No loans set up yet. Go to <strong>Loans & Setup</strong> to add one first.</div>`}
-      ` : ''}
-
-      ${addType==='rental_income' ? `
-        ${invLoans.filter(l=>l.type==='investment').length? `
-        <div class="field"><label>Investment property (linked loan)</label><select name="loanId">${invLoans.filter(l=>l.type==='investment').map(l=>`<option value="${l.id}" ${v('loanId')===l.id?'selected':''}>${l.name}</option>`).join('')}</select></div>
-        <div class="field"><label>Rental amount received</label><input type="number" step="0.01" min="0" name="amount" required placeholder="0.00" value="${v('amount')}"></div>
-        ` : `<div class="empty">No investment-property loans yet. Add one in <strong>Loans & Setup</strong> and tag it "Investment".</div>`}
-      ` : ''}
-
-      <div class="field"><label>Notes (optional)</label><input type="text" name="notes" placeholder="Any extra detail" value="${escapeHtml(v('notes'))}"></div>
-      <div class="row">
-        <button class="btn" type="submit" style="flex:0 0 auto;">${editing?'Save changes':'Save entry'}</button>
-        ${editing?`<button class="btn btn-ghost" type="button" id="cancelEditBtn" style="flex:0 0 auto;">Cancel</button>`:''}
-      </div>
-    </form>
-  </div>
-  `;
-}
-
-/* ============ PAGE: REPORTS ============ */
-function reportsSnapshot(){
-  const tl = bankTimeline();
-  const bankBal = tl.length ? tl[tl.length-1].balance : 0;
-  const totalLoanBal = state.loans.reduce((s,l)=>s+loanBalance(l),0);
-  const mtRows = monthlyTotals().slice().reverse();
-  const lastTwo = mtRows.slice(0,2);
-  return `
-  <div class="statgrid" style="margin-bottom:18px;">
-    <div class="stat"><div class="label">Bank balance</div><div class="value ${bankBal>=0?'pos':'neg'}">${fmt(bankBal)}</div></div>
-    <div class="stat"><div class="label">Total loan balance</div><div class="value">${fmt(totalLoanBal)}</div></div>
-    <div class="stat"><div class="label">Loans tracked</div><div class="value">${state.loans.length}</div></div>
-  </div>
-  ${lastTwo.length? `<div class="card" style="margin-bottom:24px;">
-    <h3>Latest two months</h3>
-    ${lastTwo.map(r=>`
-      <div class="monthrow">
-        <div class="monthrow-top"><span class="monthrow-label">${monthLabel(r.month)}</span><span class="monthrow-net" style="color:${r.net>=0?'var(--income)':'var(--expense)'}">${r.net>=0?'+':''}${fmt(r.net)}</span></div>
-        <div class="monthrow-sub"><span style="color:var(--income)">+${fmt(r.income)} income</span><span style="color:var(--expense)">-${fmt(r.expense)} expense</span></div>
-      </div>
-    `).join('')}
-  </div>` : ''}
-  `;
-}
-function pageReports(){
-  const views = [
-    {id:'monthly', label:'Monthly income vs expense'},
-    {id:'bank', label:'Bank running balance'},
-    {id:'loans', label:'Loan balances'},
-    {id:'property', label:'Investment property'},
-    {id:'categories', label:'Category breakdown'},
-    {id:'lottery', label:'Lottery'},
-    {id:'more', label:'Other reports'},
-  ];
-  return `
-  <div class="pagehead"><h2>Reports</h2><p>Everything derived from your entries</p></div>
-  ${reportsSnapshot()}
-  <div class="chips">${views.map(v=>`<div class="chip ${reportView===v.id?'active':''}" data-report="${v.id}">${v.label}</div>`).join('')}</div>
-  <div id="reportBody">${renderReportBody()}</div>
-  `;
-}
-function renderReportBody(){
-  if(reportView==='monthly') return reportMonthly();
-  if(reportView==='bank') return reportBank();
-  if(reportView==='loans') return reportLoans();
-  if(reportView==='property') return reportProperty();
-  if(reportView==='categories') return reportCategories();
-  if(reportView==='lottery') return reportLottery();
-  if(reportView==='more') return reportMore();
-  return '';
-}
-function reportMonthly(){
-  const rows = monthlyTotals().slice().reverse();
-  if(!rows.length) return '<div class="card"><div class="empty">No data yet.</div></div>';
-  const withBal = rows.map((r,i,arr)=>({...r, eomBal: calcBankBalanceAsOf(r.month+'-31'), _idx:i}));
-  const yearMap = {};
-  withBal.forEach(r=>{ const yr = r.month.slice(0,4); if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(r); });
-  const years = Object.keys(yearMap).sort().reverse();
-  const rowHtml = (r,i,arr)=>{
-    const prev = withBal[r._idx+1];
-    let trendHtml = '';
-    if(prev){
-      const delta = r.eomBal - prev.eomBal;
-      const arrow = delta>0?'▲':delta<0?'▼':'—';
-      const color = delta>0?'var(--income)':delta<0?'var(--expense)':'var(--muted)';
-      trendHtml = `<div class="monthrow-trend" style="color:${color}">${arrow} ${fmt(Math.abs(delta))} vs previous month</div>`;
-    }
-    return `<div class="monthrow">
-      <div class="monthrow-top"><span class="monthrow-label">${monthLabel(r.month)}</span><span class="monthrow-net" style="color:${r.net>=0?'var(--income)':'var(--expense)'}">${r.net>=0?'+':''}${fmt(r.net)}</span></div>
-      <div class="monthrow-sub"><span style="color:var(--income)">+${fmt(r.income)} income</span><span style="color:var(--expense)">-${fmt(r.expense)} expense</span></div>
-      <div class="monthrow-balance"><span class="bal-label">Bank balance (EOM)</span><span class="bal-val">${fmt(r.eomBal)}</span></div>
-      ${trendHtml}
-    </div>`;
+(function(){
+  // ============================================================
+  // FIREBASE SETUP — replace with your own project's config.
+  // See README.md for step-by-step Firebase + GitHub Pages setup.
+  // ============================================================
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDorVBmmT0A_GMBkoUYMOws7ySAUs4OGls",
+    authDomain: "study-ledger-d84a2.firebaseapp.com",
+    projectId: "study-ledger-d84a2",
+    storageBucket: "study-ledger-d84a2.firebasestorage.app",
+    messagingSenderId: "1096956020972",
+    appId: "1:1096956020972:web:be84ee3e3076049777bdc9"
   };
-  return `
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>
-  <div class="card"><h3>Monthly net</h3>
-  ${years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} month${yearMap[yr].length===1?'':'s'}</span></summary>
-    <div class="monthbody">${yearMap[yr].map(rowHtml).join('')}</div>
-  </details>`).join('')}
-  </div>
-  <p class="subnote" style="margin-top:2px; padding:0 4px;">"Bank balance (EOM)" is your calculated balance at the end of that month. The trend line compares it to the month before.</p>`;
-}
-function reportBank(){
-  const tl = bankTimeline();
-  const cur = tl[tl.length-1].balance;
-  const reversed = tl.slice().reverse();
-  const yearMap = {};
-  reversed.forEach(r=>{ const yr = (r.date||'').slice(0,4) || 'Unknown'; if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(r); });
-  const years = Object.keys(yearMap).sort().reverse();
-  const rowHtml = r=>{
-    const tx = r.id ? state.transactions.find(x=>x.id===r.id) : null;
-    const actions = tx ? editDeleteButtons(tx) : (r.checkpoint&&r.cpId ? `<button class="delbtn" data-editcheckpoint="bank::${r.cpId}" title="Edit">✎</button>` : '');
-    return `<tr><td>${r.date}</td><td>${r.checkpoint?'<strong>'+r.label+'</strong>':r.label}</td><td class="amt" style="color:${r.delta>0?'var(--income)':r.delta<0?'var(--expense)':'var(--muted)'}">${r.delta===0?'—':(r.delta>0?'+':'')+fmt(r.delta)}</td><td class="amt">${fmt(r.balance)}</td><td>${actions}</td></tr>`;
+  var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid mix-ups
+
+  var CHILD_COLORS = ['#4C6EF5','#E8590C','#AE3EC9','#2F9E44','#1098AD','#F08C00','#D6336C','#495057'];
+  var SUBJECT_SOLID = ['#3355D8','#C24A0F','#8C2FB0','#227A3E','#0D7A8C','#B5730A','#C2185B','#495057'];
+  var PLATFORM_OUTLINE = ['#2F6F5E','#1971C2','#862E9C','#B5730A','#495057'];
+  var CHILD_COLORS_DARK = ['#6C8CFF','#FF8A4C','#D68AFF','#5CE087','#3DD9E8','#FFC14D','#FF6FA5','#B8C2CE'];
+  var SUBJECT_SOLID_DARK = ['#5B7CFF','#FF7A33','#C264FF','#33D67F','#22C9DE','#FFB020','#FF4D8D','#98A2AF'];
+  var PLATFORM_OUTLINE_DARK = ['#4FD8B0','#59A6FF','#D68AFF','#FFC14D','#B8C2CE'];
+  var DEFAULT_PLATFORMS = ['School','Tuition','Home revision'];
+  var RECUR_OPTIONS = ['Daily','Weekly','Fortnightly','Monthly','Term'];
+  var SORT_FIELDS = {
+    status:   {label:'Status',       type:'status'},
+    deadline: {label:'Deadline',     type:'date'},
+    percent:  {label:'Percent done', type:'number'},
+    child:    {label:'Child',        type:'string'},
+    subject:  {label:'Subject',      type:'string'},
+    platform: {label:'Platform',     type:'string'},
+    type:     {label:'Type',         type:'string'}
   };
-  return `<div class="statgrid"><div class="stat"><div class="label">Current bank balance</div><div class="value ${cur>=0?'pos':'neg'}">${fmt(cur)}</div></div></div>
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>
-  <div class="card"><h3>Running balance</h3>
-  ${years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} entr${yearMap[yr].length===1?'y':'ies'}</span></summary>
-    <div class="monthbody"><table><thead><tr><th>Date</th><th>Entry</th><th class="amt">Change</th><th class="amt">Balance</th><th></th></tr></thead><tbody>
-    ${yearMap[yr].map(rowHtml).join('')}
-    </tbody></table></div>
-  </details>`).join('')}
-  </div>`;
-}
-function reportLoans(){
-  if(!state.loans.length) return '<div class="card"><div class="empty">No loans set up yet. Add one in Loans & Setup.</div></div>';
-  const expandButtons = `<div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>`;
-  return expandButtons + state.loans.map(l=>{
-    const tl = loanTimeline(l);
-    const bal = loanBalance(l);
-    const reversed = tl.slice().reverse();
-    const yearMap = {};
-    reversed.forEach(r=>{ const yr = (r.date||'').slice(0,4) || 'Unknown'; if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(r); });
-    const years = Object.keys(yearMap).sort().reverse();
-    const rowHtml = r=>`<tr><td>${r.date||'—'}</td><td>${r.checkpoint?'<strong>'+r.label+'</strong>':r.label}</td><td class="amt">${fmt(r.balance)}</td><td>${r.id?`<button class="delbtn" data-edittx="${r.id}" title="Edit">✎</button><button class="delbtn" data-del="${r.id}" title="Delete">✕</button>`:(r.checkpoint&&r.cpId?`<button class="delbtn" data-editcheckpoint="${l.id}::${r.cpId}" title="Edit">✎</button>`:'')}</td></tr>`;
-    return `<div class="card">
-      <h3>${l.name} <span style="color:var(--muted); text-transform:none; font-weight:400;">— ${l.type==='investment'?'Investment property':'Owner-occupied'}</span></h3>
-      <div class="statgrid" style="margin-bottom:12px;"><div class="stat"><div class="label">Current balance</div><div class="value">${fmt(bal)}</div></div><div class="stat"><div class="label">Opening balance</div><div class="value">${fmt(l.openingBalance)}</div></div></div>
-      ${years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} entr${yearMap[yr].length===1?'y':'ies'}</span></summary>
-        <div class="monthbody"><table><thead><tr><th>Date</th><th>Event</th><th class="amt">Balance</th><th></th></tr></thead><tbody>
-        ${yearMap[yr].map(rowHtml).join('')}
-        </tbody></table></div>
-      </details>`).join('')}
-    </div>`;
-  }).join('');
-}
-function reportProperty(){
-  const pos = investmentPositions();
-  const ids = Object.keys(pos);
-  if(!ids.length) return '<div class="card"><div class="empty">No investment-property loans yet. Tag a loan "Investment" in Loans & Setup.</div></div>';
-  const expandButtons = `<div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>`;
-  return expandButtons + ids.map(id=>{
-    const p = pos[id];
-    const totalRental = p.months.reduce((s,m)=>s+m.rental,0);
-    const totalPay = p.months.reduce((s,m)=>s+m.payment,0);
-    const reversed = p.months.slice().reverse();
-    const yearMap = {};
-    reversed.forEach(m=>{ const yr = m.month.slice(0,4); if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(m); });
-    const years = Object.keys(yearMap).sort().reverse();
-    const rowHtml = m=>`<tr><td>${monthLabel(m.month)}</td><td class="amt" style="color:var(--income)">+${fmt(m.rental)}</td><td class="amt" style="color:var(--expense)">-${fmt(m.payment)}</td><td class="amt" style="color:${m.net>=0?'var(--income)':'var(--expense)'}">${m.net>=0?'+':''}${fmt(m.net)}</td></tr>`;
-    return `<div class="card">
-      <h3>${p.loan.name}</h3>
-      <div class="statgrid" style="margin-bottom:12px;">
-        <div class="stat"><div class="label">Total rental income</div><div class="value pos">+${fmt(totalRental)}</div></div>
-        <div class="stat"><div class="label">Total loan payments</div><div class="value neg">-${fmt(totalPay)}</div></div>
-        <div class="stat"><div class="label">Net position (all time)</div><div class="value ${totalRental-totalPay>=0?'pos':'neg'}">${totalRental-totalPay>=0?'+':''}${fmt(totalRental-totalPay)}</div></div>
-      </div>
-      ${p.months.length? years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-        <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} month${yearMap[yr].length===1?'':'s'}</span></summary>
-        <div class="monthbody"><table><thead><tr><th>Month</th><th class="amt">Rental income</th><th class="amt">Loan payment</th><th class="amt">Net position</th></tr></thead><tbody>
-        ${yearMap[yr].map(rowHtml).join('')}
-        </tbody></table></div>
-      </details>`).join('') : '<div class="empty">No rental income or payments recorded yet for this property.</div>'}
-    </div>`;
-  }).join('');
-}
-function reportLottery(){
-  const L = lotteryTotals();
-  const reversed = L.months.slice().reverse();
-  const yearMap = {};
-  reversed.forEach(m=>{ const yr = m.month.slice(0,4); if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push(m); });
-  const years = Object.keys(yearMap).sort().reverse();
-  const rowHtml = m=>`<tr><td>${monthLabel(m.month)}</td><td class="amt" style="color:var(--expense)">-${fmt(m.expense)}</td><td class="amt" style="color:var(--income)">+${fmt(m.income)}</td><td class="amt" style="color:${m.net>=0?'var(--income)':'var(--expense)'}">${m.net>=0?'+':''}${fmt(m.net)}</td></tr>`;
-  return `<div class="statgrid">
-    <div class="stat"><div class="label">Total spent</div><div class="value neg">-${fmt(L.expense)}</div></div>
-    <div class="stat"><div class="label">Total won</div><div class="value pos">+${fmt(L.income)}</div></div>
-    <div class="stat"><div class="label">Net</div><div class="value ${L.net>=0?'pos':'neg'}">${L.net>=0?'+':''}${fmt(L.net)}</div></div>
-  </div>
-  ${L.months.length? `<div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="reportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>` : ''}
-  <div class="card"><h3>By month</h3>
-  ${L.months.length? years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} month${yearMap[yr].length===1?'':'s'}</span></summary>
-    <div class="monthbody"><table><thead><tr><th>Month</th><th class="amt">Spent</th><th class="amt">Won</th><th class="amt">Net</th></tr></thead><tbody>
-    ${yearMap[yr].map(rowHtml).join('')}
-    </tbody></table></div>
-  </details>`).join('') : '<div class="empty">No lottery entries yet.</div>'}
-  </div>`;
-}
-
-/* ============ OTHER REPORTS ============ */
-function reportMore(){
-  const subs = [
-    {id:'networth', label:'Net worth'},
-    {id:'yearly', label:'Yearly summary'},
-    {id:'sources', label:'Income sources'},
-    {id:'reconcile', label:'Reconciliation health'},
-    {id:'biggest', label:'Biggest transactions'},
-    {id:'averages', label:'Averages & extremes'},
-  ];
-  return `
-  <div class="chips" style="margin-bottom:16px;">${subs.map(s=>`<div class="chip ${moreReportView===s.id?'active':''}" data-morereport="${s.id}">${s.label}</div>`).join('')}</div>
-  <div id="moreReportBody">${renderMoreReportBody()}</div>
-  `;
-}
-function renderMoreReportBody(){
-  if(moreReportView==='networth') return reportNetWorth();
-  if(moreReportView==='yearly') return reportYearly();
-  if(moreReportView==='sources') return reportIncomeSources();
-  if(moreReportView==='reconcile') return reportReconciliation();
-  if(moreReportView==='biggest') return reportBiggest();
-  if(moreReportView==='averages') return reportAverages();
-  return '';
-}
-
-function reportNetWorth(){
-  const rows = monthlyTotals().slice().reverse();
-  if(!rows.length) return '<div class="card"><div class="empty">No data yet.</div></div>';
-  const withNW = rows.map(r=>({month:r.month, nw: netWorthAsOf(r.month+'-31')}));
-  const yearMap = {};
-  withNW.forEach((r,i)=>{ const yr = r.month.slice(0,4); if(!yearMap[yr]) yearMap[yr]=[]; yearMap[yr].push({...r, _idx:i}); });
-  const years = Object.keys(yearMap).sort().reverse();
-  const rowHtml = r=>{
-    const prev = withNW[r._idx+1];
-    let trendHtml = '';
-    if(prev){
-      const delta = r.nw - prev.nw;
-      const arrow = delta>0?'▲':delta<0?'▼':'—';
-      const color = delta>0?'var(--income)':delta<0?'var(--expense)':'var(--muted)';
-      trendHtml = `<div class="monthrow-trend" style="color:${color}">${arrow} ${fmt(Math.abs(delta))} vs previous month</div>`;
-    }
-    return `<div class="monthrow">
-      <div class="monthrow-top"><span class="monthrow-label">${monthLabel(r.month)}</span><span class="monthrow-net" style="color:${r.nw>=0?'var(--income)':'var(--expense)'}">${fmt(r.nw)}</span></div>
-      ${trendHtml}
-    </div>`;
+  var STATUS_META = {
+    done:       {color:'var(--done)',       label:'Done'},
+    overdue:    {color:'var(--overdue)',    label:'Overdue'},
+    dueSoon:    {color:'var(--duesoon)',    label:'Due soon'},
+    inProgress: {color:'var(--inprogress)', label:'In progress'},
+    notStarted: {color:'var(--notstarted)', label:'Not started'}
   };
-  const currentNW = withNW.length ? withNW[0].nw : 0;
-  return `
-  <div class="statgrid" style="margin-bottom:18px;"><div class="stat"><div class="label">Net worth today</div><div class="value ${currentNW>=0?'pos':'neg'}">${fmt(currentNW)}</div></div></div>
-  <p class="subnote" style="margin-bottom:16px;">Bank balance minus total loan balance, at the end of each month. ${state.loans.length? '' : 'You have no loans tracked yet, so this currently just mirrors your bank balance — add a loan in Loans & Setup to see it factored in.'}</p>
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="moreReportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all years</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="moreReportBody" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all years</button>
-  </div>
-  <div class="card"><h3>Net worth by month</h3>
-  ${years.map((yr,i)=>`<details class="monthgroup" ${i===0?'open':''}>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${yr}</span><span class="mgtotal">${yearMap[yr].length} month${yearMap[yr].length===1?'':'s'}</span></summary>
-    <div class="monthbody">${yearMap[yr].map(rowHtml).join('')}</div>
-  </details>`).join('')}
-  </div>`;
-}
+  var STATUS_ORDER = ['overdue','dueSoon','inProgress','notStarted','done'];
 
-function reportYearly(){
-  const rows = monthlyTotals();
-  if(!rows.length) return '<div class="card"><div class="empty">No data yet.</div></div>';
-  const yearMap = {};
-  rows.forEach(r=>{ const yr = r.month.slice(0,4); if(!yearMap[yr]) yearMap[yr]={income:0,expense:0}; yearMap[yr].income+=r.income; yearMap[yr].expense+=r.expense; });
-  const years = Object.keys(yearMap).sort().reverse();
-  return `<div class="card"><h3>Yearly summary</h3><table><thead><tr><th>Year</th><th class="amt">Income</th><th class="amt">Expense</th><th class="amt">Net</th><th class="amt">Year-end balance</th></tr></thead><tbody>
-  ${years.map(yr=>{
-    const y = yearMap[yr];
-    const net = y.income - y.expense;
-    const eoy = calcBankBalanceAsOf(yr+'-12-31');
-    return `<tr><td>${yr}</td><td class="amt" style="color:var(--income)">+${fmt(y.income)}</td><td class="amt" style="color:var(--expense)">-${fmt(y.expense)}</td><td class="amt" style="color:${net>=0?'var(--income)':'var(--expense)'}">${net>=0?'+':''}${fmt(net)}</td><td class="amt">${fmt(eoy)}</td></tr>`;
-  }).join('')}
-  </tbody></table></div>`;
-}
+  var state = {children:[], tasks:[]};
+  var filters = {child:'All', subject:'', platform:'', type:'', status:''};
+  var editingId = null;
+  var activeTab = 'tasks';
+  var controlsExpanded = false;
+  var historyFilterChild = 'All';
+  var reportGranularity = 'weekly';
+  var drilldownChild = null;
+  var drilldownTitle = null;
 
-function reportIncomeSources(){
-  const totals = {};
-  let grandTotal = 0;
-  state.transactions.forEach(t=>{
-    if(t.type!=='income' || !t.category) return;
-    totals[t.category] = (totals[t.category]||0) + t.amount;
-    grandTotal += t.amount;
-  });
-  const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-  if(!entries.length) return '<div class="card"><div class="empty">No income entries yet.</div></div>';
-  const max = Math.max(...entries.map(e=>e[1]),1);
-  return `<div class="card"><h3>Income by source (all time)</h3>
-  ${entries.map(([cat,val])=>{
-    const pct = grandTotal>0 ? (val/grandTotal*100) : 0;
-    return `<div class="barrow"><div class="barname">${cat}</div><div class="bartrack"><div class="barfill" style="width:${val/max*100}%; background:var(--income)"></div></div><div class="barval">${fmt(val)}</div></div><div class="subnote" style="margin:-4px 0 10px;">${pct.toFixed(1)}% of total income</div>`;
-  }).join('')}
-  </div>`;
-}
+  // Sync / profile state
+  var db = null;
+  var familyCode = localStorage.getItem('ledger-family-code') || null;
+  var profile = null; // {type:'parent'} or {type:'child', name:'Aagaaz'}
+  try { profile = JSON.parse(localStorage.getItem('ledger-profile') || 'null'); } catch(e){ profile = null; }
+  if(profile && profile.type==='parent'){
+    activeTab = 'reports';
+  } else if(profile && profile.type==='child'){
+    activeTab = 'tasks';
+    filters.child = profile.name;
+  }
+  var isSyncing = false;
+  var unsubscribeSnapshot = null;
 
-function reportReconciliation(){
-  let realIncome=0, realExpense=0, adjIncome=0, adjExpense=0;
-  const yearMap = {};
-  state.transactions.forEach(t=>{
-    if(t.type!=='income' && t.type!=='expense') return;
-    const yr = (t.date||'').slice(0,4) || 'Unknown';
-    if(!yearMap[yr]) yearMap[yr] = {real:0, adj:0};
-    if(t.isBalanceCheckpoint){
-      if(t.type==='income'){ adjIncome+=t.amount; yearMap[yr].adj+=t.amount; }
-      else{ adjExpense+=t.amount; yearMap[yr].adj+=t.amount; }
-    } else {
-      if(t.type==='income'){ realIncome+=t.amount; yearMap[yr].real+=t.amount; }
-      else{ realExpense+=t.amount; yearMap[yr].real+=t.amount; }
-    }
-  });
-  const totalReal = realIncome+realExpense;
-  const totalAdj = adjIncome+adjExpense;
-  const totalAll = totalReal+totalAdj;
-  const pctReal = totalAll>0 ? (totalReal/totalAll*100) : 100;
-  const years = Object.keys(yearMap).sort().reverse();
-  return `
-  <p class="subnote" style="margin-bottom:16px;">How much of your recorded cash flow comes from real, categorized entries vs auto-generated balance adjustments. A high adjustment share in a year usually means that year relied more on end-of-month balances than granular entries — not wrong, just less detailed.</p>
-  <div class="statgrid" style="margin-bottom:18px;">
-    <div class="stat"><div class="label">Real entries</div><div class="value pos">${fmt(totalReal)}</div></div>
-    <div class="stat"><div class="label">Auto-adjustments</div><div class="value">${fmt(totalAdj)}</div></div>
-    <div class="stat"><div class="label">% explained by real entries</div><div class="value">${pctReal.toFixed(1)}%</div></div>
-  </div>
-  <div class="card"><h3>By year</h3><table><thead><tr><th>Year</th><th class="amt">Real entries</th><th class="amt">Adjustments</th><th class="amt">% real</th></tr></thead><tbody>
-  ${years.map(yr=>{
-    const y = yearMap[yr];
-    const total = y.real+y.adj;
-    const pct = total>0 ? (y.real/total*100) : 100;
-    return `<tr><td>${yr}</td><td class="amt">${fmt(y.real)}</td><td class="amt">${fmt(y.adj)}</td><td class="amt" style="color:${pct>=80?'var(--income)':pct>=50?'var(--muted)':'var(--expense)'}">${pct.toFixed(0)}%</td></tr>`;
-  }).join('')}
-  </tbody></table></div>`;
-}
+  // Theme (light/dark), remembers choice per device
+  var theme = localStorage.getItem('ledger-theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  function applyTheme(){
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  function toggleTheme(){
+    theme = theme==='dark' ? 'light' : 'dark';
+    localStorage.setItem('ledger-theme', theme);
+    applyTheme();
+    render();
+  }
+  applyTheme();
 
-function reportBiggest(){
-  const income = state.transactions.filter(t=>t.type==='income').sort((a,b)=>b.amount-a.amount).slice(0,15);
-  const expense = state.transactions.filter(t=>t.type==='expense').sort((a,b)=>b.amount-a.amount).slice(0,15);
-  const rowHtml = t=>`<tr><td>${t.date}</td><td>${escapeHtml(t.category||'')}</td><td class="amt">${fmt(t.amount)}</td></tr>`;
-  return `
-  <div class="card"><h3>Biggest income entries</h3>
-  ${income.length? `<table><thead><tr><th>Date</th><th>Category</th><th class="amt">Amount</th></tr></thead><tbody>${income.map(rowHtml).join('')}</tbody></table>` : '<div class="empty">No income entries yet.</div>'}
-  </div>
-  <div class="card"><h3>Biggest expense entries</h3>
-  ${expense.length? `<table><thead><tr><th>Date</th><th>Category</th><th class="amt">Amount</th></tr></thead><tbody>${expense.map(rowHtml).join('')}</tbody></table>` : '<div class="empty">No expense entries yet.</div>'}
-  </div>`;
-}
+  function hashStr(s){
+    var h = 0;
+    for (var i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+    return h;
+  }
+  function paletteColor(name, list, palette){
+    var idx = list.indexOf(name);
+    if(idx < 0) idx = hashStr(name);
+    return palette[idx % palette.length];
+  }
+  function childColor(name){ return paletteColor(name, state.children, theme==='dark' ? CHILD_COLORS_DARK : CHILD_COLORS); }
+  function subjectColor(name){ return paletteColor(name, state.subjects, theme==='dark' ? SUBJECT_SOLID_DARK : SUBJECT_SOLID); }
+  function platformColor(name){ return paletteColor(name, state.platforms, theme==='dark' ? PLATFORM_OUTLINE_DARK : PLATFORM_OUTLINE); }
+  function hexToRgba(hex, alpha){
+    hex = hex.replace('#','');
+    var r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+    return 'rgba('+r+','+g+','+b+','+alpha+')';
+  }
+  function uid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
-function reportAverages(){
-  const rows = monthlyTotals();
-  if(!rows.length) return '<div class="card"><div class="empty">No data yet.</div></div>';
-  const withNet = rows.map(r=>({...r, net:r.income-r.expense}));
-  const avgIncome = withNet.reduce((s,r)=>s+r.income,0)/withNet.length;
-  const avgExpense = withNet.reduce((s,r)=>s+r.expense,0)/withNet.length;
-  const avgNet = withNet.reduce((s,r)=>s+r.net,0)/withNet.length;
-  const best = withNet.slice().sort((a,b)=>b.net-a.net)[0];
-  const worst = withNet.slice().sort((a,b)=>a.net-b.net)[0];
-  return `
-  <div class="statgrid" style="margin-bottom:18px;">
-    <div class="stat"><div class="label">Avg monthly income</div><div class="value pos">+${fmt(avgIncome)}</div></div>
-    <div class="stat"><div class="label">Avg monthly expense</div><div class="value neg">-${fmt(avgExpense)}</div></div>
-    <div class="stat"><div class="label">Avg monthly net</div><div class="value ${avgNet>=0?'pos':'neg'}">${avgNet>=0?'+':''}${fmt(avgNet)}</div></div>
-  </div>
-  <div class="statgrid">
-    <div class="stat"><div class="label">Best month</div><div class="value pos">${monthLabel(best.month)}: +${fmt(best.net)}</div></div>
-    <div class="stat"><div class="label">Worst month</div><div class="value neg">${monthLabel(worst.month)}: ${fmt(worst.net)}</div></div>
-  </div>
-  <p class="subnote" style="margin-top:16px;">Across ${withNet.length} month${withNet.length===1?'':'s'} of data.</p>`;
-}
+  // ---- Firebase / family sync ----
+  function isFirebaseConfigured(){
+    return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('YOUR_') !== 0;
+  }
 
-function findCheckpoint(ref){
-  if(!ref) return {date:todayStr(), balance:0};
-  if(ref.account==='bank') return (state.settings.bankSnapshots||[]).find(c=>c.id===ref.id) || {date:todayStr(), balance:0};
-  if(ref.account==='banktx'){ const tx = state.transactions.find(t=>t.id===ref.id); return tx ? {date:tx.date, balance:tx.checkpointBalance} : {date:todayStr(), balance:0}; }
-  const loan = state.loans.find(l=>l.id===ref.account);
-  return loan ? (loan.snapshots||[]).find(c=>c.id===ref.id) || {date:todayStr(), balance:0} : {date:todayStr(), balance:0};
-}
-function renderCheckpointList(){
-  const rows = [];
-  (state.settings.bankSnapshots||[]).forEach(c=> rows.push({date:c.date, account:'Bank account', detail:fmt(c.balance)+' (checkpoint)', editAttr:`data-editcheckpoint="bank::${c.id}"`, delAttr:`data-delcheckpoint="bank::${c.id}"`}));
-  state.loans.forEach(l=> (l.snapshots||[]).forEach(c=> rows.push({date:c.date, account:l.name+' (loan)', detail:fmt(c.balance)+' (checkpoint)', editAttr:`data-editcheckpoint="${l.id}::${c.id}"`, delAttr:`data-delcheckpoint="${l.id}::${c.id}"`})));
-  state.transactions.filter(t=>t.isBalanceCheckpoint).forEach(t=>{
-    rows.push({date:t.date, account:'Bank account', detail:'Target balance '+fmt(t.checkpointBalance)+' (adjusted '+(t.type==='income'?'+':'-')+fmt(t.amount)+')', editAttr:`data-editcheckpoint="banktx::${t.id}"`, delAttr:`data-del="${t.id}"`});
-  });
-  state.transactions.filter(t=>!t.isBalanceCheckpoint && (t.category==='Other Income'||t.category==='Other Expense')).forEach(t=>{
-    const sign = t.category==='Other Income' ? '+' : '-';
-    rows.push({date:t.date, account:'Bank account', detail:sign+fmt(t.amount)+' ('+t.category+', manual)', editAttr:`data-edittx="${t.id}"`, delAttr:`data-del="${t.id}"`});
-  });
-  if(!rows.length) return '<div class="empty">No checkpoints or balance adjustments yet.</div>';
-  rows.sort((a,b)=> b.date.localeCompare(a.date));
-  return `<table><thead><tr><th>Date</th><th>Account</th><th class="amt">Detail</th><th></th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${r.date}</td><td>${r.account}</td><td class="amt">${r.detail}</td><td style="white-space:nowrap;"><button class="delbtn" ${r.editAttr} title="Edit">✎</button><button class="delbtn" ${r.delAttr} title="Delete">✕</button></td></tr>`).join('')}
-  </tbody></table>
-  <div class="row" style="margin-top:12px;"><button class="btn btn-ghost" type="button" id="recomputeCheckpointsBtn" style="flex:0 0 auto; font-size:13px;">Recompute all balance checkpoints</button></div>
-  <p class="subnote" style="margin-top:8px;">If you edit an older balance, later adjustments were calculated against the old (wrong) number. Click "Recompute all" afterward to recalculate every adjustment fresh, in date order.</p>`;
-}
+  function initFirebase(){
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    return firebase.auth().signInAnonymously();
+  }
 
-/* ============ PAGE: LOANS & SETUP ============ */
-function pageLoans(){
-  return `
-  <div class="pagehead"><h2>Loans & Setup</h2><p>Manage home loans and your bank opening balance</p></div>
-  <div class="row" style="margin-bottom:16px; gap:8px;">
-    <button class="btn btn-ghost" type="button" data-expandall="1" data-expandscope="setupGroups" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Expand all</button>
-    <button class="btn btn-ghost" type="button" data-expandall="0" data-expandscope="setupGroups" style="flex:0 0 auto; font-size:13px; padding:8px 14px;">Collapse all</button>
-  </div>
-  <div id="setupGroups">
+  function genFamilyCode(){
+    var code = '';
+    for(var i=0;i<6;i++) code += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+    return code;
+  }
 
-  <details class="cardgroup monthgroup" open>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Bank account opening balance</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;">This is the earliest point your ledger knows about. If you have entries going back further, add a balance checkpoint below instead of moving this.</p>
-    <form id="settingsForm">
-      <div class="row">
-        <div class="field"><label>Opening balance</label><input type="number" step="0.01" name="bankOpeningBalance" value="${state.settings.bankOpeningBalance}"></div>
-        <div class="field"><label>As of date</label><input type="date" name="bankOpeningDate" value="${state.settings.bankOpeningDate}"></div>
-      </div>
-      <button class="btn" type="submit">Save</button>
-    </form>
-    </div>
-  </details>
+  function familyDocRef(){
+    return db.collection('families').doc(familyCode);
+  }
 
-  <details class="cardgroup monthgroup" open>
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Balance checkpoints</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;"><strong>Bank account:</strong> enter your real balance from your banking app on a given date. If it doesn't match what your entries add up to, the difference is automatically logged as an <strong>Other Income</strong> or <strong>Other Expense</strong> entry for that date — so the gap shows up in your reports instead of silently vanishing. If it already matches exactly, nothing is added (so there's nothing to find in the list below). Everything you've added — checkpoints and auto-adjustments alike — is listed below with edit/delete buttons.</p>
-    <p class="subnote" style="margin-bottom:12px;"><strong>Home loans:</strong> since a payment is principal + interest and only the principal reduces the balance, loan payments logged without a "principal portion" don't move the loan balance at all. Add a checkpoint here with the real balance from your statement — for loans this directly resets the reported balance (no transaction is created, since a loan-balance gap usually isn't a cash event).</p>
-    <form id="checkpointForm">
-      <div class="row">
-        <div class="field"><label>Account</label><select name="account" ${editingCheckpoint?'disabled':''}>
-          <option value="bank" ${editingCheckpoint&&(editingCheckpoint.account==='bank'||editingCheckpoint.account==='banktx')?'selected':''}>Bank account</option>
-          ${state.loans.map(l=>`<option value="${l.id}" ${editingCheckpoint&&editingCheckpoint.account===l.id?'selected':''}>${l.name} (loan)</option>`).join('')}
-        </select></div>
-        <div class="field"><label>Actual balance as of that date</label><input type="number" step="0.01" name="balance" placeholder="0.00" required value="${editingCheckpoint? findCheckpoint(editingCheckpoint).balance : ''}"></div>
-        <div class="field"><label>Date</label><input type="date" name="date" value="${editingCheckpoint? findCheckpoint(editingCheckpoint).date : todayStr()}" required></div>
-      </div>
-      <div class="row">
-        <button class="btn" type="submit" style="flex:0 0 auto;">${editingCheckpoint?'Save changes':'Add checkpoint'}</button>
-        ${editingCheckpoint?`<button class="btn btn-ghost" type="button" id="cancelCheckpointEditBtn" style="flex:0 0 auto;">Cancel</button>`:''}
-      </div>
-    </form>
-    ${renderCheckpointList()}
-    </div>
-  </details>
+  function setSyncIndicator(online){
+    var dot = document.getElementById('sync-dot');
+    if(dot) dot.className = 'sync-dot' + (online ? '' : ' offline');
+  }
 
-  <details class="cardgroup monthgroup">
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Categories</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;">One shared list for both expenses and income. Tip: if you get a refund, log it as <em>income</em> under the same category as the original expense (e.g. "Transport") — the category breakdown report will automatically net it off.</p>
-    <form id="catForm" class="field" style="max-width:340px;">
-      <label>Add category</label>
-      <div class="row"><input type="text" name="cat" placeholder="e.g. Pet care" required><button class="btn btn-ghost" type="submit" style="flex:0 0 auto;">Add</button></div>
-    </form>
-    <div class="divider"></div>
-    <div>
-      ${state.categories.map(c=>`<span class="tag loan" style="margin:0 6px 6px 0; display:inline-flex; align-items:center; gap:6px;">${c}<button class="delbtn" style="padding:0; color:inherit;" data-delcat="${c}">✕</button></span>`).join('')}
-    </div>
-    </div>
-  </details>
-
-  <details class="cardgroup monthgroup">
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Bulk add entries</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;">Got a batch of old monthly values to enter — income, expenses, or even bank balances for past dates? Download the template below, fill it in (Excel, Numbers, Google Sheets, or even Notes), then upload it here. This only <strong>adds</strong> new entries — it never touches or replaces anything already in your ledger.</p>
-    <p class="subnote" style="margin-bottom:12px;">To bulk-add historical <strong>bank balances</strong>, use type <code>balance_checkpoint</code> with the balance in the amount column — these get reconciled in date order exactly like adding checkpoints one by one, auto-creating Other Income/Expense entries for any gap.</p>
-    <div class="row" style="margin-bottom:14px;">
-      <button class="btn btn-ghost" type="button" id="downloadCsvTemplateBtn" style="flex:0 0 auto;">Download CSV template</button>
-    </div>
-    <div class="field">
-      <label>Upload filled-in CSV</label>
-      <input type="file" id="bulkCsvFile" accept=".csv,text/csv">
-    </div>
-    <div id="bulkImportResult"></div>
-    </div>
-  </details>
-
-  <details class="cardgroup monthgroup">
-    <summary><span class="mgcaret">▸</span><span class="mglabel">${editingLoanId?'Edit loan':'Add a home loan'}</span></summary>
-    <div class="cardgroup-body">
-    <form id="loanForm">
-      <div class="field"><label>Loan name</label><input type="text" name="name" placeholder="e.g. Maple St Home Loan" required value="${editingLoanId? escapeHtml(state.loans.find(l=>l.id===editingLoanId).name):''}"></div>
-      <div class="row">
-        <div class="field"><label>Type</label><select name="type">
-          <option value="occupied" ${editingLoanId && state.loans.find(l=>l.id===editingLoanId).type==='occupied'?'selected':''}>Owner-occupied</option>
-          <option value="investment" ${editingLoanId && state.loans.find(l=>l.id===editingLoanId).type==='investment'?'selected':''}>Investment property</option>
-        </select></div>
-        <div class="field"><label>Opening balance</label><input type="number" step="0.01" name="openingBalance" placeholder="0.00" required value="${editingLoanId? state.loans.find(l=>l.id===editingLoanId).openingBalance:''}"></div>
-        <div class="field"><label>Start date</label><input type="date" name="startDate" value="${editingLoanId? state.loans.find(l=>l.id===editingLoanId).startDate : todayStr()}"></div>
-      </div>
-      <div class="row">
-        <button class="btn" type="submit" style="flex:0 0 auto;">${editingLoanId?'Save changes':'Add loan'}</button>
-        ${editingLoanId?`<button class="btn btn-ghost" type="button" id="cancelLoanEditBtn" style="flex:0 0 auto;">Cancel</button>`:''}
-      </div>
-    </form>
-    </div>
-  </details>
-
-  <details class="cardgroup monthgroup">
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Your loans</span></summary>
-    <div class="cardgroup-body">
-    ${state.loans.length? `<table><thead><tr><th>Name</th><th>Type</th><th class="amt">Opening</th><th class="amt">Current</th><th></th></tr></thead><tbody>
-    ${state.loans.map(l=>`<tr><td>${l.name}</td><td><span class="tag ${l.type==='investment'?'rental':'loan'}">${l.type==='investment'?'Investment':'Owner-occupied'}</span></td><td class="amt">${fmt(l.openingBalance)}</td><td class="amt">${fmt(loanBalance(l))}</td><td style="white-space:nowrap;"><button class="delbtn" data-editloan="${l.id}" title="Edit">✎</button><button class="delbtn" data-delloan="${l.id}" title="Delete">✕</button></td></tr>`).join('')}
-    </tbody></table>` : '<div class="empty">No loans added yet.</div>'}
-    </div>
-  </details>
-
-  <details class="cardgroup monthgroup">
-    <summary><span class="mgcaret">▸</span><span class="mglabel">Backup</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;">Export everything as a JSON file, or restore from a previous export. <strong>Import fully replaces</strong> all current data — use Bulk Add above instead if you just want to add entries.</p>
-    <div class="row">
-      <button class="btn btn-ghost" id="exportBtn" type="button">Export data</button>
-      <label class="btn btn-ghost" style="text-align:center; cursor:pointer;">Import data (replaces everything)<input type="file" id="importFile" accept="application/json" style="display:none;"></label>
-    </div>
-    </div>
-  </details>
-
-  <details class="cardgroup monthgroup danger-card">
-    <summary><span class="mgcaret">▸</span><span class="mglabel" style="color:var(--expense);">Danger zone</span></summary>
-    <div class="cardgroup-body">
-    <p class="subnote" style="margin-bottom:12px;">Permanently erases every transaction, loan, checkpoint, and category, resetting the app to a blank slate. There's no undo — export a backup first if there's any chance you'll want this data again.</p>
-    <button class="btn" type="button" id="eraseAllBtn" style="background:var(--expense); color:#fff;">Erase all data</button>
-    </div>
-  </details>
-
-  </div>
-  `;
-}
-
-/* ============ EVENT WIRING ============ */
-function attachHandlers(){
-  document.querySelectorAll('[data-type]').forEach(el=>{
-    el.onclick = ()=>{ addType = el.dataset.type; render(); };
-  });
-  document.querySelectorAll('[data-report]').forEach(el=>{
-    el.onclick = ()=>{ reportView = el.dataset.report; document.querySelectorAll('[data-report]').forEach(c=>c.classList.toggle('active', c.dataset.report===reportView)); document.getElementById('reportBody').innerHTML = renderReportBody(); attachHandlers(); };
-  });
-  document.querySelectorAll('[data-catview]').forEach(el=>{
-    el.onclick = ()=>{ categoryViewMode = el.dataset.catview; document.getElementById('reportBody').innerHTML = renderReportBody(); attachHandlers(); };
-  });
-  document.querySelectorAll('[data-morereport]').forEach(el=>{
-    el.onclick = ()=>{ moreReportView = el.dataset.morereport; document.querySelectorAll('[data-morereport]').forEach(c=>c.classList.toggle('active', c.dataset.morereport===moreReportView)); document.getElementById('moreReportBody').innerHTML = renderMoreReportBody(); attachHandlers(); };
-  });
-  document.querySelectorAll('[data-expandall]').forEach(el=>{
-    el.onclick = ()=>{
-      const open = el.dataset.expandall==='1';
-      const scopeId = el.dataset.expandscope;
-      const container = scopeId ? document.getElementById(scopeId) : document;
-      if(container) container.querySelectorAll('.monthgroup').forEach(d=>{ if(open) d.setAttribute('open',''); else d.removeAttribute('open'); });
-    };
-  });
-  document.querySelectorAll('[data-del]').forEach(el=>{
-    el.onclick = ()=> showConfirm('Delete this entry? This can\'t be undone.', ()=>{ deleteTransaction(el.dataset.del); showToast('Entry deleted'); });
-  });
-  document.querySelectorAll('[data-delloan]').forEach(el=>{
-    el.onclick = ()=>{
-      const linked = state.transactions.some(t=>t.loanId===el.dataset.delloan);
-      const msg = linked ? 'This loan has linked entries. Delete it anyway? The entries will remain but show as unlinked.' : 'Delete this loan?';
-      showConfirm(msg, ()=> deleteLoan(el.dataset.delloan));
-    };
-  });
-  const catSelect = document.getElementById('catSelect');
-  if(catSelect) catSelect.onchange = ()=>{
-    const newInput = document.getElementById('newCatInput');
-    if(catSelect.value==='__new__'){ newInput.style.display='block'; newInput.focus(); }
-    else { newInput.style.display='none'; }
-  };
-  const ef = document.getElementById('entryForm');
-  if(ef) ef.onsubmit = (e)=>{
-    e.preventDefault();
-    const fd = new FormData(ef);
-    const tx = { type: addType, date: fd.get('date') };
-    if(fd.has('category')){
-      let cat = fd.get('category');
-      if(cat==='__new__'){
-        cat = (fd.get('newCategory')||'').trim();
-        if(!cat){ showToast('Enter a name for the new category'); return; }
-        if(!state.categories.includes(cat)){ state.categories.push(cat); saveCategories(); }
-      }
-      tx.category = cat;
-    }
-    if(fd.has('loanId')) tx.loanId = fd.get('loanId');
-    if(addType==='loan_payment'){
-      const p = fd.get('principal');
-      tx.principal = (p!==null && p!=='') ? parseFloat(p) : null;
-    }
-    tx.amount = parseFloat(fd.get('amount'));
-    tx.notes = fd.get('notes') || '';
-    if(isNaN(tx.amount) || tx.amount<0){ showToast('Enter a valid amount'); return; }
-    if((addType==='loan_payment'||addType==='rental_income') && !tx.loanId){ showToast('Add a loan first'); return; }
-    if(editingTxId){
-      const idx = state.transactions.findIndex(t=>t.id===editingTxId);
-      if(idx>-1){ tx.id = editingTxId; state.transactions[idx] = tx; saveTransactions().then(()=>{ showToast('Entry updated'); editingTxId=null; currentTab='dashboard'; render(); }); }
-    } else {
-      addTransaction(tx);
-    }
-  };
-  const cancelEditBtn = document.getElementById('cancelEditBtn');
-  if(cancelEditBtn) cancelEditBtn.onclick = ()=>{ editingTxId=null; currentTab='dashboard'; render(); };
-  document.querySelectorAll('[data-edittx]').forEach(el=>{
-    el.onclick = ()=>{ editingTxId = el.dataset.edittx; currentTab='add'; render(); window.scrollTo(0,0); };
-  });
-  const sf = document.getElementById('settingsForm');
-  if(sf) sf.onsubmit = (e)=>{
-    e.preventDefault();
-    const fd = new FormData(sf);
-    state.settings.bankOpeningBalance = parseFloat(fd.get('bankOpeningBalance'))||0;
-    state.settings.bankOpeningDate = fd.get('bankOpeningDate');
-    saveSettings().then(()=>{ showToast('Settings saved'); render(); });
-  };
-  const lf = document.getElementById('loanForm');
-  if(lf) lf.onsubmit = (e)=>{
-    e.preventDefault();
-    const fd = new FormData(lf);
-    const name = fd.get('name');
-    if(!name.trim()){ showToast('Enter a loan name'); return; }
-    if(editingLoanId){
-      const loan = state.loans.find(l=>l.id===editingLoanId);
-      loan.name = name; loan.type = fd.get('type'); loan.openingBalance = parseFloat(fd.get('openingBalance'))||0; loan.startDate = fd.get('startDate')||todayStr();
-      saveLoans().then(()=>{ showToast('Loan updated'); editingLoanId=null; render(); });
-    } else {
-      const loan = { name, type: fd.get('type'), openingBalance: parseFloat(fd.get('openingBalance'))||0, startDate: fd.get('startDate')||todayStr(), snapshots:[] };
-      addLoan(loan).then(()=>showToast('Loan added'));
-      lf.reset();
-    }
-  };
-  document.querySelectorAll('[data-editloan]').forEach(el=>{
-    el.onclick = ()=>{ editingLoanId = el.dataset.editloan; render(); window.scrollTo(0,0); };
-  });
-  const cancelLoanEditBtn = document.getElementById('cancelLoanEditBtn');
-  if(cancelLoanEditBtn) cancelLoanEditBtn.onclick = ()=>{ editingLoanId=null; render(); };
-  const cf = document.getElementById('checkpointForm');
-  if(cf) cf.onsubmit = (e)=>{
-    e.preventDefault();
-    const fd = new FormData(cf);
-    const balance = parseFloat(fd.get('balance'));
-    const date = fd.get('date');
-    if(isNaN(balance)){ showToast('Enter a valid balance'); return; }
-    if(editingCheckpoint){
-      if(editingCheckpoint.account==='banktx'){
-        const idx = state.transactions.findIndex(t=>t.id===editingCheckpoint.id);
-        if(idx>-1) state.transactions.splice(idx,1);
-        const baseline = calcBankBalanceAsOf(date);
-        const diff = balance - baseline;
-        if(Math.abs(diff) < 0.005){
-          saveTransactions().then(()=>{ showToast('Updated — balances now match without needing an adjustment'); editingCheckpoint=null; render(); });
-        } else {
-          const tx = {
-            id: editingCheckpoint.id, date,
-            type: diff>0 ? 'income' : 'expense',
-            category: diff>0 ? 'Other Income' : 'Other Expense',
-            amount: Math.abs(diff),
-            notes: 'Auto-added to reconcile to entered balance of '+fmt(balance),
-            isBalanceCheckpoint: true,
-            checkpointBalance: balance
-          };
-          state.transactions.push(tx);
-          saveTransactions().then(()=>{ showToast('Balance updated'); editingCheckpoint=null; render(); });
-        }
+  // Subscribes to the family doc in real time. Calls render() whenever data changes,
+  // including changes made from other devices (e.g. a child's phone).
+  function subscribeToFamily(){
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    unsubscribeSnapshot = familyDocRef().onSnapshot(function(doc){
+      if(doc.exists){
+        state = migrateState(doc.data());
       } else {
-        const cp = findCheckpoint(editingCheckpoint);
-        cp.date = date; cp.balance = balance;
-        if(editingCheckpoint.account==='bank'){ saveSettings().then(()=>{ showToast('Checkpoint updated'); editingCheckpoint=null; render(); }); }
-        else{ saveLoans().then(()=>{ showToast('Checkpoint updated'); editingCheckpoint=null; render(); }); }
+        state = defaultState();
+        familyDocRef().set(state).catch(function(){});
       }
-    } else {
-      const account = fd.get('account');
-      if(account==='bank'){
-        const calculated = calcBankBalanceAsOf(date);
-        const diff = balance - calculated;
-        if(Math.abs(diff) < 0.005){ showToast('Balance already matches — nothing to reconcile'); return; }
-        const tx = {
-          id: uid(), date,
-          type: diff>0 ? 'income' : 'expense',
-          category: diff>0 ? 'Other Income' : 'Other Expense',
-          amount: Math.abs(diff),
-          notes: 'Auto-added to reconcile to entered balance of '+fmt(balance),
-          isBalanceCheckpoint: true,
-          checkpointBalance: balance
-        };
-        state.transactions.push(tx);
-        saveTransactions().then(()=>{ showToast((diff>0?'Added ':'Added ')+fmt(Math.abs(diff))+' as '+tx.category); render(); });
-      } else {
-        const entry = {id:uid(), date, balance};
-        const loan = state.loans.find(l=>l.id===account);
-        if(loan){ loan.snapshots.push(entry); saveLoans().then(()=>{ showToast('Checkpoint added'); render(); }); }
-      }
-    }
-  };
-  document.querySelectorAll('[data-editcheckpoint]').forEach(el=>{
-    el.onclick = ()=>{
-      const [account, id] = el.dataset.editcheckpoint.split('::');
-      editingCheckpoint = {account, id};
-      currentTab = 'loans';
+      setSyncIndicator(true);
       render();
-      window.scrollTo(0,0);
-    };
-  });
-  const cancelCheckpointEditBtn = document.getElementById('cancelCheckpointEditBtn');
-  if(cancelCheckpointEditBtn) cancelCheckpointEditBtn.onclick = ()=>{ editingCheckpoint=null; render(); };
-  document.querySelectorAll('[data-delcheckpoint]').forEach(el=>{
-    el.onclick = ()=>{
-      const [account, id] = el.dataset.delcheckpoint.split('::');
-      showConfirm('Delete this balance checkpoint?', ()=>{
-        if(account==='bank'){ state.settings.bankSnapshots = state.settings.bankSnapshots.filter(c=>c.id!==id); saveSettings().then(render); }
-        else{ const loan = state.loans.find(l=>l.id===account); if(loan){ loan.snapshots = loan.snapshots.filter(c=>c.id!==id); saveLoans().then(render); } }
-      });
-    };
-  });
-  const catForm = document.getElementById('catForm');
-  if(catForm) catForm.onsubmit = (e)=>{
-    e.preventDefault(); const fd = new FormData(catForm); const cat = (fd.get('cat')||'').trim();
-    if(cat && !state.categories.includes(cat)){ state.categories.push(cat); saveCategories().then(render); }
-  };
-  document.querySelectorAll('[data-delcat]').forEach(el=>{
-    el.onclick = ()=>{
-      const cat = el.dataset.delcat;
-      showConfirm('Remove "'+cat+'" from your category list? Existing entries keep this category, it just won\'t appear as an option for new ones.', ()=>{
-        state.categories = state.categories.filter(c=>c!==cat);
-        saveCategories().then(render);
-      }, 'Remove');
-    };
-  });
-  const downloadCsvTemplateBtn = document.getElementById('downloadCsvTemplateBtn');
-  if(downloadCsvTemplateBtn) downloadCsvTemplateBtn.onclick = ()=>{
-    const invLoan = state.loans.find(l=>l.type==='investment');
-    const anyLoan = state.loans[0];
-    const lines = [
-      'date,type,category,amount,notes,loan_name,principal',
-      '2024-01-15,income,Salary,5000,,,',
-      '2024-01-20,expense,Groceries,320.50,,,',
-      anyLoan ? `2024-01-05,loan_payment,,2200,,${anyLoan.name},650` : '2024-01-05,loan_payment,,2200,,Exact loan name from Loans & Setup,650',
-      invLoan ? `2024-01-01,rental_income,,1800,,${invLoan.name},` : '2024-01-01,rental_income,,1800,,Exact investment loan name,',
-      '2024-01-10,expense,Lottery,20,,,',
-      '2024-01-12,income,Lottery,50,,,',
-      '2024-01-31,balance_checkpoint,,15230.55,,,'
-    ];
-    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'ledger-bulk-template.csv';
-    a.click(); URL.revokeObjectURL(url);
-  };
-  const bulkCsvFile = document.getElementById('bulkCsvFile');
-  if(bulkCsvFile) bulkCsvFile.onchange = (e)=>{
-    const file = e.target.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      const rows = parseCSV(reader.result);
-      const resultBoxNow = document.getElementById('bulkImportResult');
-      if(!rows.length){ if(resultBoxNow) resultBoxNow.innerHTML = '<div class="empty">No rows found in that file.</div>'; return; }
-      const validTypes = ['expense','income','loan_payment','rental_income','lottery_expense','lottery_income','balance_checkpoint'];
-      const added = [];
-      const checkpointRows = [];
-      const errors = [];
-      rows.forEach((r,idx)=>{
-        const lineNum = idx+2;
-        const date = r.date;
-        let type = (r.type||'').trim();
-        if(!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)){ errors.push(`Row ${lineNum}: invalid or missing date "${r.date||''}" (need YYYY-MM-DD)`); return; }
-        if(!validTypes.includes(type)){ errors.push(`Row ${lineNum}: unknown type "${r.type||''}"`); return; }
-        const amount = parseFloat(r.amount);
-        if(isNaN(amount) || amount<0){ errors.push(`Row ${lineNum}: invalid amount "${r.amount||''}"`); return; }
-        if(type==='balance_checkpoint'){ checkpointRows.push({date, balance:amount}); return; }
-        let forcedCategory = null;
-        if(type==='lottery_expense'){ type='expense'; forcedCategory='Lottery'; }
-        if(type==='lottery_income'){ type='income'; forcedCategory='Lottery'; }
-        const tx = {id:uid(), date, type, amount, notes: r.notes||''};
-        if(forcedCategory){ tx.category = forcedCategory; if(!state.categories.includes(forcedCategory)) state.categories.push(forcedCategory); added.push(tx); return; }
-        if(type==='expense' || type==='income'){
-          const cat = (r.category||'').trim();
-          if(!cat){ errors.push(`Row ${lineNum}: missing category for ${type}`); return; }
-          tx.category = cat;
-          if(!state.categories.includes(cat)) state.categories.push(cat);
-        }
-        if(type==='loan_payment' || type==='rental_income'){
-          const loanName = (r.loan_name||'').trim();
-          const loan = state.loans.find(l=> l.name.trim().toLowerCase()===loanName.toLowerCase());
-          if(!loan){ errors.push(`Row ${lineNum}: no loan found named "${loanName}"`); return; }
-          tx.loanId = loan.id;
-          if(type==='loan_payment'){
-            const p = parseFloat(r.principal);
-            tx.principal = (r.principal && !isNaN(p)) ? p : null;
-          }
-        }
-        added.push(tx);
-      });
-      if(added.length) state.transactions.push(...added);
-      let reconciledCount = 0, matchedCount = 0;
-      if(checkpointRows.length){
-        checkpointRows.sort((a,b)=> a.date.localeCompare(b.date));
-        checkpointRows.forEach(cp=>{
-          const calculated = calcBankBalanceAsOf(cp.date);
-          const diff = cp.balance - calculated;
-          if(Math.abs(diff) < 0.005){ matchedCount++; return; }
-          const adjTx = {
-            id: uid(), date: cp.date,
-            type: diff>0 ? 'income' : 'expense',
-            category: diff>0 ? 'Other Income' : 'Other Expense',
-            amount: Math.abs(diff),
-            notes: 'Auto-added to reconcile to bulk-imported balance of '+fmt(cp.balance),
-            isBalanceCheckpoint: true,
-            checkpointBalance: cp.balance
-          };
-          state.transactions.push(adjTx);
-          added.push(adjTx);
-          reconciledCount++;
-        });
-      }
-      if(added.length){
-        saveTransactions();
-        saveCategories();
-      }
-      let html = `<div class="netbadge" style="border-left-color:${added.length?'var(--income)':'var(--expense)'}; margin-top:14px;"><div class="netbadge-detail">${added.length} entr${added.length===1?'y':'ies'} added${reconciledCount?` (incl. ${reconciledCount} balance adjustment${reconciledCount===1?'':'s'})`:''}${matchedCount?`, ${matchedCount} balance${matchedCount===1?'':'s'} already matched — nothing added for those`:''}${errors.length?`, ${errors.length} row${errors.length===1?'':'s'} skipped`:''}</div></div>`;
-      if(errors.length){
-        html += `<div class="subnote" style="margin-top:8px;"><strong>Skipped rows:</strong><br>${errors.map(er=>escapeHtml(er)).join('<br>')}</div>`;
-      }
-      if(added.length){ render(); showToast(`Added ${added.length} entries`); }
-      const resultBox = document.getElementById('bulkImportResult');
-      if(resultBox) resultBox.innerHTML = html;
-    };
-    reader.readAsText(file);
-  };
-  const recomputeCheckpointsBtn = document.getElementById('recomputeCheckpointsBtn');
-  if(recomputeCheckpointsBtn) recomputeCheckpointsBtn.onclick = ()=>{
-    showConfirm('Recompute every balance-checkpoint adjustment from scratch, in date order? This corrects any that went stale after an edit. Manually-added Other Income/Expense entries (not tied to a balance checkpoint) are left untouched.', ()=>{
-      const targets = state.transactions.filter(t=>t.isBalanceCheckpoint).map(t=>({date:t.date, balance:t.checkpointBalance}));
-      state.transactions = state.transactions.filter(t=>!t.isBalanceCheckpoint);
-      targets.sort((a,b)=> a.date.localeCompare(b.date));
-      let addedCount=0, matchedCount=0;
-      targets.forEach(cp=>{
-        const calculated = calcBankBalanceAsOf(cp.date);
-        const diff = cp.balance - calculated;
-        if(Math.abs(diff) < 0.005){ matchedCount++; return; }
-        state.transactions.push({
-          id: uid(), date: cp.date,
-          type: diff>0 ? 'income' : 'expense',
-          category: diff>0 ? 'Other Income' : 'Other Expense',
-          amount: Math.abs(diff),
-          notes: 'Auto-added to reconcile to target balance of '+fmt(cp.balance),
-          isBalanceCheckpoint: true,
-          checkpointBalance: cp.balance
-        });
-        addedCount++;
-      });
-      saveTransactions().then(()=>{
-        showToast(`Recomputed ${targets.length} checkpoints: ${addedCount} adjustment${addedCount===1?'':'s'}, ${matchedCount} matched exactly`);
-        render();
-      });
-    }, 'Recompute');
-  };
-  const eraseAllBtn = document.getElementById('eraseAllBtn');
-  if(eraseAllBtn) eraseAllBtn.onclick = ()=>{
-    showConfirm('Erase ALL data — every transaction, loan, checkpoint, and category? This cannot be undone.', ()=>{
-      state.transactions = [];
-      state.loans = [];
-      state.categories = [...DEFAULT_CATEGORIES];
-      state.settings = { bankOpeningBalance:0, bankOpeningDate: '1970-01-01', bankSnapshots:[] };
-      Promise.all([saveTransactions(), saveLoans(), saveCategories(), saveSettings()]).then(()=>{
-        showToast('All data erased');
-        currentTab = 'dashboard';
-        render();
-      });
-    }, 'Erase everything');
-  };
-  const exportBtn = document.getElementById('exportBtn');
-  if(exportBtn) exportBtn.onclick = ()=>{
-    const data = JSON.stringify({transactions:state.transactions, loans:state.loans, settings:state.settings, categories:state.categories}, null, 2);
-    const blob = new Blob([data], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'ledger-backup-'+todayStr()+'.json';
-    a.click(); URL.revokeObjectURL(url);
-  };
-  const importFile = document.getElementById('importFile');
-  if(importFile) importFile.onchange = (e)=>{
-    const file = e.target.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      let data;
-      try{ data = JSON.parse(reader.result); }catch(err){ showToast('Invalid file'); return; }
-      showConfirm('This will replace your current data with the imported file. Continue?', async ()=>{
-        state.transactions = data.transactions || [];
-        state.loans = data.loans || [];
-        state.settings = data.settings || state.settings;
-        state.categories = Array.isArray(data.categories) ? data.categories : (data.categories ? Array.from(new Set([...(data.categories.expense||[]), ...(data.categories.income||[])])) : state.categories);
-        state.loans.forEach(l=>{ if(!l.snapshots) l.snapshots = []; });
-        if(!state.settings.bankSnapshots) state.settings.bankSnapshots = [];
-        await saveTransactions(); await saveLoans(); await saveSettings(); await saveCategories();
-        showToast('Data imported');
-        render();
-      }, 'Import');
-    };
-    reader.readAsText(file);
-  };
-}
+    }, function(err){
+      console.error(err);
+      setSyncIndicator(false);
+      showToast("Can't reach the server — changes will retry when back online.");
+    });
+  }
 
-/* ============ INIT ============ */
-loadState();
+  function defaultState(){
+    var viewId = uid();
+    return {
+      children:[], subjects:[], platforms: DEFAULT_PLATFORMS.slice(), tasks:[], history:[],
+      views:[{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}],
+      activeViewId: viewId
+    };
+  }
+
+  function migrateState(s){
+    s = s || {};
+    s.children = s.children || [];
+    s.subjects = s.subjects || [];
+    s.platforms = (s.platforms && s.platforms.length) ? s.platforms : DEFAULT_PLATFORMS.slice();
+    s.tasks = s.tasks || [];
+    s.history = s.history || [];
+    if(!s.views || !s.views.length){
+      var viewId = uid();
+      s.views = [{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}];
+      s.activeViewId = viewId;
+    }
+    if(!s.activeViewId || !s.views.some(function(v){ return v.id===s.activeViewId; })){
+      s.activeViewId = s.views[0].id;
+    }
+    return s;
+  }
+
+  async function saveState(){
+    if(!db || !familyCode) return;
+    try{
+      await familyDocRef().set(state);
+      setSyncIndicator(true);
+    }catch(e){
+      setSyncIndicator(false);
+      showToast("Couldn't save — check your connection.");
+    }
+  }
+
+  function openPromptModal(title, placeholder, onSubmit){
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:340px;">' +
+        '<h2>'+escapeHtml(title)+'</h2>' +
+        '<div class="field"><input type="text" id="p-input" placeholder="'+escapeHtml(placeholder)+'"></div>' +
+        '<div class="field" id="p-error" style="display:none;color:var(--overdue);font-size:12px;"></div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="p-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="p-save">Add</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector('#p-input');
+    input.focus();
+    function submit(){
+      var val = input.value.trim();
+      if(!val){
+        var err = overlay.querySelector('#p-error');
+        err.textContent = 'Enter a name first.';
+        err.style.display = 'block';
+        return;
+      }
+      overlay.remove();
+      onSubmit(val);
+    }
+    overlay.querySelector('#p-cancel').onclick = function(){ overlay.remove(); };
+    overlay.querySelector('#p-save').onclick = submit;
+    input.onkeydown = function(e){ if(e.key==='Enter') submit(); };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  }
+
+  function openConfirmModal(message, confirmLabel, onConfirm){
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:340px;">' +
+        '<h2>Are you sure?</h2>' +
+        '<p style="font-size:13.5px;color:var(--ink-soft);margin:0 0 4px;">'+escapeHtml(message)+'</p>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="c-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="c-confirm" style="background:var(--overdue);border-color:var(--overdue);">'+escapeHtml(confirmLabel)+'</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#c-cancel').onclick = function(){ overlay.remove(); };
+    overlay.querySelector('#c-confirm').onclick = function(){ overlay.remove(); onConfirm(); };
+    overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  }
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    if(!t){
+      t = document.createElement('div');
+      t.id='toast'; t.className='toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+  }
+
+  function todayStr(){
+    var d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function nextDeadline(dateStr, freq){
+    var d = new Date(dateStr+'T00:00:00');
+    switch(freq){
+      case 'Daily': d.setDate(d.getDate()+1); break;
+      case 'Weekly': d.setDate(d.getDate()+7); break;
+      case 'Fortnightly': d.setDate(d.getDate()+14); break;
+      case 'Monthly': d.setMonth(d.getMonth()+1); break;
+      case 'Term': d.setDate(d.getDate()+70); break; // approx. 10-week school term
+      default: d.setDate(d.getDate()+7);
+    }
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function logCompletion(t){
+    state.history.unshift({
+      id: uid(),
+      taskId: t.id,
+      title: t.title,
+      child: t.child,
+      subject: t.subject,
+      platform: t.platform,
+      type: t.type,
+      recurrence: t.recurrence || null,
+      deadline: t.deadline || null,
+      completedAt: Date.now()
+    });
+    if(state.history.length > 500) state.history = state.history.slice(0, 500);
+  }
+
+  function handleCompletion(t){
+    if(t.percent < 100) return;
+    logCompletion(t);
+    if(t.type==='Recurring' && t.deadline){
+      var newDeadline = nextDeadline(t.deadline, t.recurrence || 'Weekly');
+      t.deadline = newDeadline;
+      t.percent = 0;
+      showToast('"'+t.title+'" repeats — next due '+formatDeadline(newDeadline));
+    }
+  }
+
+  function getStatus(task){
+    if (task.percent >= 100) return 'done';
+    if (!task.deadline) return task.percent > 0 ? 'inProgress' : 'notStarted';
+    var today = new Date(todayStr()+'T00:00:00');
+    var dl = new Date(task.deadline+'T00:00:00');
+    var diffDays = Math.round((dl-today)/86400000);
+    if (diffDays < 0) return 'overdue';
+    if (diffDays <= 3) return 'dueSoon';
+    return task.percent > 0 ? 'inProgress' : 'notStarted';
+  }
+
+  function getActiveView(){
+    var v = state.views.filter(function(v){ return v.id === state.activeViewId; })[0];
+    return v || state.views[0];
+  }
+
+  function getFieldValue(t, field){
+    switch(field){
+      case 'status': return STATUS_ORDER.indexOf(getStatus(t));
+      case 'deadline': return t.deadline || null;
+      case 'percent': return t.percent;
+      case 'child': return (t.child||'').toLowerCase();
+      case 'subject': return (t.subject||'').toLowerCase();
+      case 'platform': return (t.platform||'').toLowerCase();
+      case 'type': return (t.type||'').toLowerCase();
+    }
+  }
+
+  function compareValues(va, vb, type, dir){
+    var cmp;
+    if(type==='date'){
+      if(va===null && vb===null) cmp=0;
+      else if(va===null) cmp=1;
+      else if(vb===null) cmp=-1;
+      else cmp = va<vb ? -1 : (va>vb ? 1 : 0);
+    } else if(type==='number' || type==='status'){
+      cmp = va - vb;
+    } else {
+      cmp = va<vb ? -1 : (va>vb ? 1 : 0);
+    }
+    return dir==='desc' ? -cmp : cmp;
+  }
+
+  function sortTasks(list, levels){
+    list.sort(function(a,b){
+      for(var i=0;i<levels.length;i++){
+        var lvl = levels[i];
+        var f = SORT_FIELDS[lvl.field];
+        if(!f) continue;
+        var cmp = compareValues(getFieldValue(a, lvl.field), getFieldValue(b, lvl.field), f.type, lvl.dir);
+        if(cmp !== 0) return cmp;
+      }
+      return 0;
+    });
+    return list;
+  }
+
+  function formatDeadline(dstr){
+    if(!dstr) return null;
+    var d = new Date(dstr+'T00:00:00');
+    return d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
+  }
+
+  function escapeHtml(s){
+    var div = document.createElement('div');
+    div.textContent = s == null ? '' : s;
+    return div.innerHTML;
+  }
+
+  function render(){
+    var app = document.getElementById('app');
+
+    if(!isFirebaseConfigured()){
+      app.innerHTML = renderSetupRequired();
+      return;
+    }
+    if(!familyCode){
+      app.innerHTML = renderFamilyCodeScreen();
+      bindFamilyCodeScreen();
+      return;
+    }
+    if(!profile){
+      app.innerHTML = renderProfilePickerScreen();
+      bindProfilePickerScreen();
+      return;
+    }
+
+    var screenHtml;
+    if(activeTab==='tasks') screenHtml = renderTasksScreen();
+    else if(activeTab==='history') screenHtml = renderHistoryPane();
+    else if(activeTab==='reports') screenHtml = renderReportsPane();
+    else screenHtml = renderManagePane();
+    app.innerHTML = renderStatusBar() + renderTopTabs() + screenHtml;
+    setSyncIndicator(true);
+
+    document.getElementById('btn-switch-profile').onclick = function(){
+      profile = null;
+      localStorage.removeItem('ledger-profile');
+      render();
+    };
+    document.getElementById('btn-toggle-theme').onclick = toggleTheme;
+    document.querySelectorAll('[data-top-tab]').forEach(function(el){
+      el.onclick = function(){ activeTab = el.getAttribute('data-top-tab'); render(); };
+    });
+
+    if(activeTab==='tasks'){
+      document.getElementById('btn-new').onclick = function(){ openModal(null); };
+      document.getElementById('btn-toggle-controls').onclick = function(){ controlsExpanded = !controlsExpanded; render(); };
+      bindTabEvents();
+      if(controlsExpanded){
+        bindFilterEvents();
+        bindSortRowEvents();
+      }
+      bindTaskEvents();
+    } else if(activeTab==='manage'){
+      document.getElementById('btn-reset').onclick = onResetClick;
+      document.getElementById('btn-leave-family').onclick = onLeaveFamilyClick;
+      document.getElementById('btn-copy-code').onclick = function(){
+        navigator.clipboard.writeText(familyCode).then(function(){ showToast('Family code copied.'); }).catch(function(){});
+      };
+      bindManageEvents(document);
+    } else if(activeTab==='history'){
+      bindHistoryEvents();
+    } else if(activeTab==='reports'){
+      bindReportsEvents();
+    }
+  }
+
+  function renderStatusBar(){
+    var who = profile.type==='parent' ? 'Parent view' : profile.name;
+    return '<div class="status-bar"><span><span class="sync-dot" id="sync-dot"></span>Family '+familyCode+'</span>' +
+      '<span style="display:flex;align-items:center;gap:10px;">' +
+        '<button class="theme-toggle" id="btn-toggle-theme">'+(theme==='dark' ? 'Light mode' : 'Dark mode')+'</button>' +
+        '<button class="profile-switcher" id="btn-switch-profile">'+escapeHtml(who)+' · Switch</button>' +
+      '</span></div>';
+  }
+
+  function renderSetupRequired(){
+    return '<div class="onboard">' +
+      '<h1>Setup needed</h1>' +
+      '<p>This app needs a Firebase project connected before it can store anything. Open <code>index.html</code>, find the <code>FIREBASE_CONFIG</code> block near the top of the script, and paste in your project\'s config values. Full steps are in <strong>README.md</strong>.</p>' +
+      '</div>';
+  }
+
+  function renderFamilyCodeScreen(){
+    return '<div class="onboard">' +
+      '<h1>Study ledger</h1>' +
+      '<p>One shared ledger the whole family can reach from any device.</p>' +
+      '<div class="onboard-card"><h3>Join a family</h3>' +
+        '<input type="text" id="join-code-input" maxlength="6" placeholder="ABC123">' +
+        '<button class="btn btn-primary" id="btn-join-family" style="width:100%;">Join</button>' +
+      '</div>' +
+      '<div class="onboard-divider">or</div>' +
+      '<div class="onboard-card"><h3>Start a new family</h3>' +
+        '<p style="margin-bottom:12px;">Creates a fresh code — you\'ll enter it on everyone else\'s device to join the same ledger.</p>' +
+        '<button class="btn btn-primary" id="btn-create-family" style="width:100%;">Create new family</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindFamilyCodeScreen(){
+    document.getElementById('btn-join-family').onclick = function(){
+      var val = document.getElementById('join-code-input').value.trim().toUpperCase();
+      if(!val){ showToast('Enter a family code first.'); return; }
+      familyCode = val;
+      localStorage.setItem('ledger-family-code', familyCode);
+      document.getElementById('app').innerHTML = '<div class="loading">Connecting…</div>';
+      subscribeToFamily();
+    };
+    document.getElementById('btn-create-family').onclick = function(){
+      familyCode = genFamilyCode();
+      localStorage.setItem('ledger-family-code', familyCode);
+      document.getElementById('app').innerHTML = '<div class="loading">Setting things up…</div>';
+      subscribeToFamily();
+    };
+  }
+
+  function renderProfilePickerScreen(){
+    var childButtons = state.children.map(function(c){
+      return '<button class="profile-btn" data-profile-child="'+escapeHtml(c)+'" style="border-color:'+childColor(c)+';color:'+childColor(c)+';">'+escapeHtml(c)+'</button>';
+    }).join('');
+    return '<div class="onboard">' +
+      '<h1>Who\'s using this?</h1>' +
+      '<p>Pick a name so this device shows the right view by default — you can switch anytime from the header.</p>' +
+      '<div class="onboard-card"><div class="profile-grid">' +
+        childButtons +
+        '<button class="profile-btn" data-profile-parent="1" style="border-color:var(--ink);color:var(--ink);">Parent / Guardian</button>' +
+      '</div>' +
+      (state.children.length===0 ? '<p style="font-size:12px;color:var(--ink-faint);margin:12px 0 0;">No children added yet — continue as Parent, then add them under Manage.</p>' : '') +
+      '</div>' +
+      '<div class="onboard-divider">Family code: '+familyCode+'</div>' +
+    '</div>';
+  }
+
+  function bindProfilePickerScreen(){
+    document.querySelectorAll('[data-profile-child]').forEach(function(btn){
+      btn.onclick = function(){
+        profile = {type:'child', name: btn.getAttribute('data-profile-child')};
+        localStorage.setItem('ledger-profile', JSON.stringify(profile));
+        activeTab = 'tasks';
+        filters.child = profile.name;
+        render();
+      };
+    });
+    var parentBtn = document.querySelector('[data-profile-parent]');
+    if(parentBtn) parentBtn.onclick = function(){
+      profile = {type:'parent'};
+      localStorage.setItem('ledger-profile', JSON.stringify(profile));
+      activeTab = 'reports';
+      render();
+    };
+  }
+
+  function onLeaveFamilyClick(){
+    openConfirmModal('This disconnects the device from family "'+familyCode+'". You can rejoin any time with the code.', 'Leave family', function(){
+      if(unsubscribeSnapshot) unsubscribeSnapshot();
+      localStorage.removeItem('ledger-family-code');
+      localStorage.removeItem('ledger-profile');
+      familyCode = null;
+      profile = null;
+      render();
+    });
+  }
+
+  function renderTopTabs(){
+    return '<div class="top-tabs">' +
+      '<button class="top-tab '+(activeTab==='tasks'?'active':'')+'" data-top-tab="tasks">Tasks</button>' +
+      '<button class="top-tab '+(activeTab==='history'?'active':'')+'" data-top-tab="history">History</button>' +
+      '<button class="top-tab '+(activeTab==='reports'?'active':'')+'" data-top-tab="reports">Reports</button>' +
+      '<button class="top-tab '+(activeTab==='manage'?'active':'')+'" data-top-tab="manage">Manage</button>' +
+      '</div>';
+  }
+
+  function renderTasksScreen(){
+    var subjects = uniqueSubjects();
+    return '<div class="masthead-compact">' +
+        '<div><h1>Study ledger</h1><div class="masthead-meta">' + state.tasks.length + ' tasks · ' + state.children.length + ' ' + (state.children.length===1?'child':'children') + '</div></div>' +
+        '<button class="btn btn-primary" id="btn-new">+ New task</button>' +
+      '</div>' +
+      renderTabs() +
+      renderControlsBar() +
+      (controlsExpanded ? '<div class="controls-expanded">' + renderFilters(subjects) + renderSortRow() + '</div>' : '') +
+      renderTaskList();
+  }
+
+  function renderControlsBar(){
+    var scoped = tasksForChildScope();
+    var counts = {overdue:0, dueSoon:0, inProgress:0, notStarted:0, done:0};
+    var pctSum=0;
+    scoped.forEach(function(t){
+      var s = getStatus(t);
+      if(counts[s]!==undefined) counts[s]++;
+      pctSum += t.percent;
+    });
+    var avg = scoped.length ? Math.round(pctSum/scoped.length) : 0;
+    return '<div class="controls-bar">' +
+      '<button class="btn btn-ghost btn-sm" id="btn-toggle-controls">'+(controlsExpanded ? 'Hide filters ▲' : 'Filters & sort ▾')+'</button>' +
+      '<span class="mini-stats">'+counts.overdue+' late · '+counts.dueSoon+' soon · '+counts.inProgress+' active · '+counts.notStarted+' not started · '+counts.done+' done · '+avg+'% avg</span>' +
+      '</div>';
+  }
+
+  function uniqueSubjects(){
+    var set = {};
+    state.subjects.forEach(function(s){ set[s]=true; });
+    state.tasks.forEach(function(t){ if(t.subject) set[t.subject]=true; });
+    return Object.keys(set).sort();
+  }
+
+  function renderTabs(){
+    var html = '<div class="tabs" id="tabs">';
+    html += '<button class="tab ' + (filters.child==='All'?'active':'') + '" data-child="All" style="--tab-color:#1F2933">All</button>';
+    state.children.forEach(function(c){
+      html += '<button class="tab ' + (filters.child===c?'active':'') + '" data-child="' + escapeHtml(c) + '" style="--tab-color:' + childColor(c) + '">' + escapeHtml(c) + '</button>';
+    });
+    html += '<button class="tab add-tab" id="tab-add">+ Add child</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function bindTabEvents(){
+    document.querySelectorAll('#tabs .tab[data-child]').forEach(function(el){
+      el.onclick = function(){ filters.child = el.getAttribute('data-child'); render(); };
+    });
+    document.getElementById('tab-add').onclick = function(){
+      openPromptModal("Add a child", "Child's name", function(name){
+        if(state.children.indexOf(name)===-1){
+          state.children.push(name);
+          filters.child = name;
+          saveState();
+        }
+        render();
+      });
+    };
+  }
+
+  function tasksForChildScope(){
+    if (filters.child==='All') return state.tasks;
+    return state.tasks.filter(function(t){ return t.child===filters.child; });
+  }
+
+  function renderFilters(subjects){
+    var html = '<div class="filters">';
+    html += selectHtml('f-subject','All subjects', subjects, filters.subject);
+    html += selectHtml('f-platform','All platforms', state.platforms, filters.platform);
+    html += selectHtml('f-type','All types', ['Recurring','Adhoc'], filters.type);
+    html += selectHtml('f-status','All statuses', STATUS_ORDER.map(function(k){return STATUS_META[k].label;}), filters.status);
+    html += '</div>';
+    return html;
+  }
+  function selectHtml(id, allLabel, options, current){
+    var html = '<select id="'+id+'"><option value="">'+allLabel+'</option>';
+    options.forEach(function(o){
+      html += '<option value="'+escapeHtml(o)+'" '+(current===o?'selected':'')+'>'+escapeHtml(o)+'</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+  function bindFilterEvents(){
+    document.getElementById('f-subject').onchange = function(e){ filters.subject=e.target.value; render(); };
+    document.getElementById('f-platform').onchange = function(e){ filters.platform=e.target.value; render(); };
+    document.getElementById('f-type').onchange = function(e){ filters.type=e.target.value; render(); };
+    document.getElementById('f-status').onchange = function(e){ filters.status=e.target.value; render(); };
+  }
+
+  function statusLabelToKey(label){
+    for(var k in STATUS_META){ if(STATUS_META[k].label===label) return k; }
+    return null;
+  }
+
+  function filteredTasks(){
+    var list = tasksForChildScope().filter(function(t){
+      if (filters.subject && t.subject !== filters.subject) return false;
+      if (filters.platform && t.platform !== filters.platform) return false;
+      if (filters.type && t.type !== filters.type) return false;
+      if (filters.status){
+        var key = statusLabelToKey(filters.status);
+        if (getStatus(t) !== key) return false;
+      }
+      return true;
+    });
+    return sortTasks(list, getActiveView().levels);
+  }
+
+  function renderSortRow(){
+    var view = getActiveView();
+    return '<div class="sort-row">' +
+      '<label style="font-size:12px;color:var(--ink-soft);font-weight:600;">View</label>' +
+      '<select id="view-select">' +
+        state.views.map(function(v){ return '<option value="'+v.id+'" '+(v.id===view.id?'selected':'')+'>'+escapeHtml(v.name)+'</option>'; }).join('') +
+        '<option value="__new__">+ New view…</option>' +
+      '</select>' +
+      '<button class="btn btn-ghost" id="btn-edit-sort">Edit sort ⇅</button>' +
+      '</div>';
+  }
+
+  function bindSortRowEvents(){
+    document.getElementById('view-select').onchange = function(e){
+      if(e.target.value === '__new__'){
+        e.target.value = state.activeViewId;
+        openPromptModal('Name this view', 'e.g. By subject then deadline', function(name){
+          var v = {id: uid(), name: name, levels: [{field:'deadline', dir:'asc'}]};
+          state.views.push(v);
+          state.activeViewId = v.id;
+          saveState();
+          render();
+          openSortModal();
+        });
+      } else {
+        state.activeViewId = e.target.value;
+        saveState();
+        render();
+      }
+    };
+    document.getElementById('btn-edit-sort').onclick = function(){ openSortModal(); };
+  }
+
+  function openSortModal(){
+    var view = getActiveView();
+    var tempName = view.name;
+    var tempLevels = view.levels.map(function(l){ return {field:l.field, dir:l.dir}; });
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+
+    function draw(){
+      overlay.innerHTML =
+        '<div class="modal" style="max-width:420px;">' +
+          '<h2>Sort &amp; views</h2>' +
+          '<div class="field"><label>View name</label><input type="text" id="sort-name" value="'+escapeHtml(tempName)+'"></div>' +
+          '<div class="field"><label>Sort by, in order of priority</label><div id="sort-levels">' +
+            tempLevels.map(function(l,i){ return sortLevelRow(l,i); }).join('') +
+          '</div>' +
+          (tempLevels.length < Object.keys(SORT_FIELDS).length ? '<button class="btn btn-ghost" id="sort-add-level" style="margin-top:2px;">+ Add level</button>' : '') +
+          '</div>' +
+          '<div class="modal-actions" style="justify-content:space-between;">' +
+            (state.views.length>1 ? '<button class="btn-danger-text" id="sort-delete">Delete view</button>' : '<span></span>') +
+            '<div style="display:flex;gap:8px;"><button class="btn btn-ghost" id="sort-cancel">Cancel</button><button class="btn btn-primary" id="sort-save">Save</button></div>' +
+          '</div>' +
+        '</div>';
+      bind();
+    }
+
+    function sortLevelRow(l,i){
+      return '<div class="sort-level-row" data-row="'+i+'">' +
+        '<span style="font-size:11px;color:var(--ink-faint);width:14px;">'+(i+1)+'.</span>' +
+        '<select data-level-field="'+i+'">' +
+          Object.keys(SORT_FIELDS).map(function(k){ return '<option value="'+k+'" '+(l.field===k?'selected':'')+'>'+SORT_FIELDS[k].label+'</option>'; }).join('') +
+        '</select>' +
+        '<button class="btn btn-ghost" data-level-dir="'+i+'" style="padding:6px 9px;white-space:nowrap;">'+(l.dir==='desc'?'↓ Desc':'↑ Asc')+'</button>' +
+        (tempLevels.length>1 ? '<button class="icon-btn" data-level-remove="'+i+'" title="Remove level">✕</button>' : '') +
+        '</div>';
+    }
+
+    function bind(){
+      overlay.querySelector('#sort-cancel').onclick = function(){ overlay.remove(); };
+      overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+      overlay.querySelector('#sort-name').oninput = function(e){ tempName = e.target.value; };
+      var addBtn = overlay.querySelector('#sort-add-level');
+      if(addBtn) addBtn.onclick = function(){
+        var used = tempLevels.map(function(l){ return l.field; });
+        var next = Object.keys(SORT_FIELDS).filter(function(k){ return used.indexOf(k)===-1; })[0] || 'percent';
+        tempLevels.push({field:next, dir:'asc'});
+        draw();
+      };
+      overlay.querySelectorAll('[data-level-field]').forEach(function(sel){
+        sel.onchange = function(){ tempLevels[parseInt(sel.getAttribute('data-level-field'),10)].field = sel.value; };
+      });
+      overlay.querySelectorAll('[data-level-dir]').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-level-dir'),10);
+          tempLevels[i].dir = tempLevels[i].dir==='desc' ? 'asc' : 'desc';
+          draw();
+        };
+      });
+      overlay.querySelectorAll('[data-level-remove]').forEach(function(btn){
+        btn.onclick = function(){
+          tempLevels.splice(parseInt(btn.getAttribute('data-level-remove'),10), 1);
+          draw();
+        };
+      });
+      var delBtn = overlay.querySelector('#sort-delete');
+      if(delBtn) delBtn.onclick = function(){
+        openConfirmModal('Delete the "'+view.name+'" view?', 'Delete view', function(){
+          state.views = state.views.filter(function(v){ return v.id !== view.id; });
+          if(state.activeViewId === view.id) state.activeViewId = state.views[0].id;
+          saveState();
+          overlay.remove();
+          render();
+        });
+      };
+      overlay.querySelector('#sort-save').onclick = function(){
+        view.name = overlay.querySelector('#sort-name').value.trim() || 'Untitled view';
+        view.levels = tempLevels.slice();
+        saveState();
+        overlay.remove();
+        render();
+      };
+    }
+    draw();
+  }
+
+  function renderTaskList(){
+    var list = filteredTasks();
+    if(list.length===0){
+      return '<div class="empty"><h3>Nothing here</h3>Add a task, or clear a filter to see more.</div>';
+    }
+    var html = '<div class="task-list">';
+    list.forEach(function(t){ html += renderTask(t); });
+    html += '</div>';
+    return html;
+  }
+
+  function renderTask(t){
+    var status = getStatus(t);
+    var meta = STATUS_META[status];
+    var childC = childColor(t.child);
+    var subColor = subjectColor(t.subject || 'General');
+    var platColor = platformColor(t.platform);
+    var deadlineClass = status==='overdue' ? 'deadline-overdue' : (status==='dueSoon' ? 'deadline-soon' : 'deadline-ok');
+    var deadlineText = t.deadline ? formatDeadline(t.deadline) : 'No deadline';
+    var typeLabel = t.type==='Recurring' ? ('↻ ' + (t.recurrence || 'Recurring')) : '• Adhoc';
+    return '<div class="task '+(status==='done'?'done':'')+'" style="--status-color:'+meta.color+'" data-id="'+t.id+'">' +
+      '<button class="task-check" data-action="toggle" data-id="'+t.id+'">'+(status==='done'?'✓':'')+'</button>' +
+      '<div class="task-body">' +
+        '<div class="task-top">' +
+          '<div class="task-title">'+escapeHtml(t.title)+'</div>' +
+        '</div>' +
+        '<div class="task-meta">' +
+          '<span class="pill pill-child" style="border:1.5px solid '+childC+';color:'+childC+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(childC,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(t.child)+'</span>' +
+          '<span class="pill pill-subject" style="background:'+subColor+'">'+escapeHtml(t.subject||'General')+'</span>' +
+          '<span class="pill pill-platform" style="border:1.5px solid '+platColor+';color:'+platColor+'">'+escapeHtml(t.platform)+'</span>' +
+          '<span class="pill pill-type '+(t.type==='Recurring'?'pill-type-recurring':'pill-type-adhoc')+'">'+typeLabel+'</span>' +
+          '<span class="pill pill-deadline '+deadlineClass+'">'+deadlineText+'</span>' +
+        '</div>' +
+        '<div class="progress-row">' +
+          '<input type="range" class="pct-input" min="0" max="100" step="5" value="'+t.percent+'" data-action="pct" data-id="'+t.id+'">' +
+          '<span class="pct-label">'+t.percent+'%</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="task-actions">' +
+        '<button class="icon-btn" data-action="edit" data-id="'+t.id+'" title="Edit">✎</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="'+t.id+'" title="Delete">✕</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindTaskEvents(){
+    document.querySelectorAll('[data-action="toggle"]').forEach(function(el){
+      el.onclick = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(!t) return;
+        t.percent = t.percent >= 100 ? (t._prev || 0) : (t._prev = t.percent, 100);
+        handleCompletion(t);
+        saveState(); render();
+      };
+    });
+    document.querySelectorAll('[data-action="pct"]').forEach(function(el){
+      el.oninput = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(!t) return;
+        t.percent = parseInt(el.target ? el.target.value : el.value, 10);
+        el.parentElement.querySelector('.pct-label').textContent = t.percent + '%';
+        var taskEl = el.closest('.task');
+        var status = getStatus(t);
+        taskEl.style.setProperty('--status-color', STATUS_META[status].color);
+        taskEl.classList.toggle('done', status==='done');
+      };
+      el.onchange = function(){
+        var t = findTask(el.getAttribute('data-id'));
+        if(t) handleCompletion(t);
+        saveState(); render();
+      };
+    });
+    document.querySelectorAll('[data-action="edit"]').forEach(function(el){
+      el.onclick = function(){ openModal(el.getAttribute('data-id')); };
+    });
+    document.querySelectorAll('[data-action="delete"]').forEach(function(el){
+      el.onclick = function(){
+        var id = el.getAttribute('data-id');
+        openConfirmModal('This deletes the task for good.', 'Delete task', function(){
+          state.tasks = state.tasks.filter(function(t){ return t.id !== id; });
+          saveState(); render();
+        });
+      };
+    });
+  }
+
+  function findTask(id){
+    for(var i=0;i<state.tasks.length;i++) if(state.tasks[i].id===id) return state.tasks[i];
+    return null;
+  }
+
+  function onResetClick(){
+    openConfirmModal('This clears every child and task from the shared ledger for everyone in family '+familyCode+'.', 'Reset data', function(){
+      state = defaultState();
+      filters = {child:'All', subject:'', platform:'', type:'', status:''};
+      saveState();
+      render();
+    });
+  }
+
+  function renderManagePane(){
+    return '<div class="masthead"><div><h1>Manage lists</h1><div class="sub">Children, subjects &amp; platforms used across tasks</div></div></div>' +
+      '<div class="manage-pane">' +
+        '<div class="manage-section"><h3>Family code</h3>' +
+          '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;">Enter this on any other iPhone or Mac to join the same shared ledger.</p>' +
+          '<div class="code-display" style="max-width:220px;">'+familyCode+'</div>' +
+          '<button class="btn btn-ghost" id="btn-copy-code">Copy code</button>' +
+        '</div>' +
+        '<div class="manage-key">' +
+          '<span><span class="type-swatch solid" style="--sw-color:'+(theme==='dark'?SUBJECT_SOLID_DARK[0]:SUBJECT_SOLID[0])+'"></span>Subject — solid</span>' +
+          '<span><span class="type-swatch outline" style="--sw-color:'+(theme==='dark'?PLATFORM_OUTLINE_DARK[0]:PLATFORM_OUTLINE[0])+'"></span>Platform — outline</span>' +
+          '<span><span class="type-swatch stripe" style="--sw-color:'+(theme==='dark'?CHILD_COLORS_DARK[0]:CHILD_COLORS[0])+'"></span>Child — stripes</span>' +
+          '<span><span class="pill pill-type pill-type-recurring" style="padding:2px 7px;">↻</span>&nbsp;Recurring &nbsp;/&nbsp; <span class="pill pill-type pill-type-adhoc" style="padding:2px 7px;">•</span>&nbsp;Adhoc</span>' +
+        '</div>' +
+        manageSection('Children', 'child', state.children) +
+        manageSection('Subjects', 'subject', uniqueSubjects()) +
+        manageSection('Platforms', 'platform', state.platforms) +
+        '<div class="manage-section"><h3>Danger zone</h3>' +
+          '<button class="btn" id="btn-reset" style="color:var(--overdue);border-color:var(--overdue);margin-right:8px;">Reset all data</button>' +
+          '<button class="btn" id="btn-leave-family" style="color:var(--overdue);border-color:var(--overdue);">Leave this family</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function chipHtml(kind, name){
+    if(kind==='child'){
+      var c = childColor(name);
+      return '<span class="manage-chip" style="border:1.5px solid '+c+';color:'+c+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(c,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(name)+
+        '<button data-kind="child" data-name="'+escapeHtml(name)+'" title="Remove">✕</button></span>';
+    }
+    if(kind==='subject'){
+      var s = subjectColor(name);
+      return '<span class="manage-chip" style="background:'+s+';color:#fff;border-color:'+s+';">'+escapeHtml(name)+
+        '<button data-kind="subject" data-name="'+escapeHtml(name)+'" title="Remove" style="color:rgba(255,255,255,0.85);">✕</button></span>';
+    }
+    var p = platformColor(name);
+    return '<span class="manage-chip" style="border:1.5px solid '+p+';color:'+p+';">'+escapeHtml(name)+
+      '<button data-kind="platform" data-name="'+escapeHtml(name)+'" title="Remove">✕</button></span>';
+  }
+
+  function manageSection(title, kind, items){
+    var html = '<div class="manage-section"><h3>'+title+'</h3><div class="manage-list">';
+    if(items.length===0){
+      html += '<span style="font-size:12.5px;color:var(--ink-faint);">None yet</span>';
+    }
+    items.forEach(function(name){ html += chipHtml(kind, name); });
+    html += '</div><div class="manage-add-row"><input type="text" id="add-'+kind+'" placeholder="Add '+title.toLowerCase().replace(/s$/,'')+'…"><button class="btn" data-add="'+kind+'">Add</button></div></div>';
+    return html;
+  }
+
+  function bindManageEvents(root){
+    root.querySelectorAll('.manage-chip button').forEach(function(btn){
+      btn.onclick = function(){
+        var kind = btn.getAttribute('data-kind');
+        var name = btn.getAttribute('data-name');
+        openConfirmModal('Existing tasks that use "'+name+'" will keep it, but it will drop off this list.', 'Remove', function(){
+          if(kind==='child') state.children = state.children.filter(function(c){ return c!==name; });
+          if(kind==='subject') state.subjects = state.subjects.filter(function(s){ return s!==name; });
+          if(kind==='platform') state.platforms = state.platforms.filter(function(p){ return p!==name; });
+          saveState();
+          render();
+        });
+      };
+    });
+    root.querySelectorAll('[data-add]').forEach(function(btn){
+      btn.onclick = function(){
+        var kind = btn.getAttribute('data-add');
+        var input = root.querySelector('#add-'+kind);
+        var val = input.value.trim();
+        if(!val) return;
+        if(kind==='child' && state.children.indexOf(val)===-1) state.children.push(val);
+        if(kind==='subject' && state.subjects.indexOf(val)===-1) state.subjects.push(val);
+        if(kind==='platform' && state.platforms.indexOf(val)===-1) state.platforms.push(val);
+        saveState();
+        render();
+      };
+    });
+  }
+
+  // ---- History ----
+  function renderHistoryPane(){
+    var list = state.history.filter(function(h){ return historyFilterChild==='All' || h.child===historyFilterChild; });
+    return '<div class="masthead"><div><h1>History</h1><div class="sub">' + state.history.length + ' completions logged</div></div></div>' +
+      '<div class="filters" style="margin-bottom:16px;">' +
+        '<select id="history-child-filter">' +
+          '<option value="All" '+(historyFilterChild==='All'?'selected':'')+'>All children</option>' +
+          state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(historyFilterChild===c?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') +
+        '</select>' +
+        '<button class="btn btn-ghost" id="btn-clear-history">Clear history</button>' +
+      '</div>' +
+      (list.length===0
+        ? '<div class="empty"><h3>No completions yet</h3>Once tasks are ticked off, they\'ll show up here — including what the deadline was at the time.</div>'
+        : '<div class="task-list">' + list.map(renderHistoryRow).join('') + '</div>');
+  }
+
+  function renderHistoryRow(h){
+    var childC = childColor(h.child);
+    var subColor = subjectColor(h.subject || 'General');
+    var platColor = platformColor(h.platform);
+    var when = new Date(h.completedAt).toLocaleString('en-AU', {day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit'});
+    var deadlineText = h.deadline ? formatDeadline(h.deadline) : 'No deadline';
+    var typeLabel = h.type==='Recurring' ? ('↻ ' + (h.recurrence || 'Recurring')) : '• Adhoc';
+    return '<div class="task" style="--status-color:var(--done);">' +
+      '<span class="task-check" style="background:var(--done);color:#fff;border-color:var(--done);">✓</span>' +
+      '<div class="task-body">' +
+        '<div class="task-top"><div class="task-title">'+escapeHtml(h.title)+'</div><span style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--ink-soft);white-space:nowrap;">'+when+'</span></div>' +
+        '<div class="task-meta">' +
+          '<span class="pill pill-child" style="border:1.5px solid '+childC+';color:'+childC+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(childC,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(h.child)+'</span>' +
+          '<span class="pill pill-subject" style="background:'+subColor+'">'+escapeHtml(h.subject||'General')+'</span>' +
+          '<span class="pill pill-platform" style="border:1.5px solid '+platColor+';color:'+platColor+'">'+escapeHtml(h.platform)+'</span>' +
+          '<span class="pill pill-type '+(h.type==='Recurring'?'pill-type-recurring':'pill-type-adhoc')+'">'+typeLabel+'</span>' +
+          '<span class="pill pill-deadline deadline-ok">Due was '+deadlineText+'</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindHistoryEvents(){
+    var sel = document.getElementById('history-child-filter');
+    if(sel) sel.onchange = function(e){ historyFilterChild = e.target.value; render(); };
+    var clearBtn = document.getElementById('btn-clear-history');
+    if(clearBtn) clearBtn.onclick = function(){
+      openConfirmModal('This permanently deletes the completion history.', 'Clear history', function(){
+        state.history = [];
+        saveState();
+        render();
+      });
+    };
+  }
+
+  // ---- Reports ----
+  function computeOverview(){
+    var active = state.tasks;
+    var avgPct = active.length ? Math.round(active.reduce(function(s,t){ return s+t.percent; },0)/active.length) : 0;
+    var withDeadline = state.history.filter(function(h){ return h.deadline; });
+    var onTime = withDeadline.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
+    var onTimeRate = withDeadline.length ? Math.round(onTime/withDeadline.length*100) : null;
+    return { total: active.length, completions: state.history.length, avgPct: avgPct, onTimeRate: onTimeRate };
+  }
+
+  function computeChildTable(){
+    return state.children.map(function(child){
+      var childTasks = state.tasks.filter(function(t){ return t.child===child; });
+      var avgPct = childTasks.length ? Math.round(childTasks.reduce(function(s,t){ return s+t.percent; },0)/childTasks.length) : 0;
+      var hist = state.history.filter(function(h){ return h.child===child; });
+      var withDl = hist.filter(function(h){ return h.deadline; });
+      var onTime = withDl.filter(function(h){ return new Date(h.completedAt) <= new Date(h.deadline+'T23:59:59'); }).length;
+      var onTimeRate = withDl.length ? Math.round(onTime/withDl.length*100) : null;
+      return {child:child, active:childTasks.length, avgPct:avgPct, completions:hist.length, onTimeRate:onTimeRate};
+    });
+  }
+
+  function computeGroupStats(field, names, colorFn){
+    return names.map(function(name){
+      var count = state.history.filter(function(h){ return h[field]===name; }).length;
+      return {label:name, value:count, color:colorFn(name)};
+    }).filter(function(x){ return x.value>0; }).sort(function(a,b){ return b.value-a.value; });
+  }
+
+  function computeWeeklyActivity(){
+    var buckets = [];
+    var today = new Date(); today.setHours(0,0,0,0);
+    var day = today.getDay();
+    var diffToMonday = (day===0 ? -6 : 1-day);
+    var thisMonday = new Date(today); thisMonday.setDate(today.getDate()+diffToMonday);
+    for(var i=7;i>=0;i--){
+      var start = new Date(thisMonday); start.setDate(thisMonday.getDate() - i*7);
+      var end = new Date(start); end.setDate(start.getDate()+7);
+      var count = state.history.filter(function(h){ var d=new Date(h.completedAt); return d>=start && d<end; }).length;
+      buckets.push({label: start.toLocaleDateString('en-AU',{day:'numeric',month:'short'}), count: count});
+    }
+    return buckets;
+  }
+
+  function reportStatHtml(num, lbl){
+    return '<div class="report-stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>';
+  }
+
+  function renderHBarSection(title, items){
+    var max = Math.max.apply(null, items.map(function(i){ return i.value; }).concat([1]));
+    var rows = items.map(function(it){
+      var pct = Math.round((it.value/max)*100);
+      return '<div class="hbar-row">' +
+        '<div class="hbar-label">'+escapeHtml(it.label)+'</div>' +
+        '<div class="hbar-track"><div class="hbar-fill" style="width:'+pct+'%;background:'+it.color+';"></div></div>' +
+        '<div class="hbar-value">'+it.value+'</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="report-card"><h3>'+title+'</h3>' + (items.length ? rows : '<div class="report-empty">Not enough completions logged yet.</div>') + '</div>';
+  }
+
+  function renderWeeklyChart(){
+    var weekly = computeWeeklyActivity();
+    var max = Math.max.apply(null, weekly.map(function(w){ return w.count; }).concat([1]));
+    var cols = weekly.map(function(w){
+      var h = Math.max(3, Math.round((w.count/max)*90));
+      return '<div class="vbar-col"><div class="vbar-count">'+w.count+'</div><div class="vbar" style="height:'+h+'px;"></div><div class="vbar-label">'+w.label+'</div></div>';
+    }).join('');
+    return '<div class="report-card"><h3>Completions per week (last 8 weeks)</h3><div class="vbar-chart">'+cols+'</div></div>';
+  }
+
+  function renderChildTable(){
+    var rows = computeChildTable();
+    if(rows.length===0){
+      return '<div class="report-card"><h3>By child</h3><div class="report-empty">Add a child to see stats here.</div></div>';
+    }
+    var body = rows.map(function(r){
+      return '<tr><td style="color:'+childColor(r.child)+';">'+escapeHtml(r.child)+'</td>' +
+        '<td>'+r.active+'</td><td>'+r.avgPct+'%</td><td>'+r.completions+'</td><td>'+(r.onTimeRate===null?'—':r.onTimeRate+'%')+'</td></tr>';
+    }).join('');
+    return '<div class="report-card"><h3>By child</h3><table class="report-table">' +
+      '<thead><tr><th>Child</th><th>Active</th><th>Avg %</th><th>Completed</th><th>On-time</th></tr></thead>' +
+      '<tbody>'+body+'</tbody></table></div>';
+  }
+
+  function periodKeyAndLabel(timestamp, granularity){
+    var d = new Date(timestamp);
+    if(granularity==='daily'){
+      var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var label = d.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+      return {key:key, label:label};
+    }
+    if(granularity==='monthly'){
+      var key2 = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      return {key:key2, label: d.toLocaleDateString('en-AU', {month:'long', year:'numeric'})};
+    }
+    if(granularity==='yearly'){
+      return {key:String(d.getFullYear()), label:String(d.getFullYear())};
+    }
+    // weekly (default): bucket by the Monday of that week
+    var day = d.getDay();
+    var diffToMonday = (day===0 ? -6 : 1-day);
+    var monday = new Date(d); monday.setHours(0,0,0,0); monday.setDate(d.getDate()+diffToMonday);
+    var key3 = monday.getFullYear()+'-'+String(monday.getMonth()+1).padStart(2,'0')+'-'+String(monday.getDate()).padStart(2,'0');
+    return {key:key3, label:'Week of ' + monday.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})};
+  }
+
+  function groupHistoryByPeriod(granularity){
+    var groups = {};
+    state.history.forEach(function(h){
+      var pk = periodKeyAndLabel(h.completedAt, granularity);
+      if(!groups[pk.key]) groups[pk.key] = {label: pk.label, entries: []};
+      groups[pk.key].entries.push(h);
+    });
+    return Object.keys(groups).sort().reverse().map(function(k){ return groups[k]; });
+  }
+
+  function renderPeriodGroup(group){
+    var byChild = {};
+    group.entries.forEach(function(h){ byChild[h.child] = (byChild[h.child]||0)+1; });
+    var chipRow = Object.keys(byChild).map(function(c){
+      return '<span class="period-chip" style="color:'+childColor(c)+';border-color:'+childColor(c)+';">'+escapeHtml(c)+' · '+byChild[c]+'</span>';
+    }).join('');
+    var rows = group.entries.slice().sort(function(a,b){ return b.completedAt - a.completedAt; }).map(function(h){
+      var time = new Date(h.completedAt).toLocaleString('en-AU', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
+      return '<tr>' +
+        '<td style="color:'+childColor(h.child)+';">'+escapeHtml(h.child)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.subject||'General')+'</td>' +
+        '<td style="color:'+platformColor(h.platform)+';">'+escapeHtml(h.platform)+'</td>' +
+        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(h.title)+'</td>' +
+        '<td>'+time+'</td>' +
+      '</tr>';
+    }).join('');
+    return '<div class="period-group">' +
+      '<div class="period-header"><span class="period-title">'+escapeHtml(group.label)+'</span><span class="period-count">'+group.entries.length+' completed</span></div>' +
+      '<div class="period-chips">'+chipRow+'</div>' +
+      '<table class="report-table"><thead><tr><th>Child</th><th>Subject</th><th>Platform</th><th>Task</th><th>Completed</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div>';
+  }
+
+  function renderActivityLog(){
+    var allGroups = groupHistoryByPeriod(reportGranularity);
+    var groups = allGroups.slice(0, 12);
+    var granButtons = ['daily','weekly','monthly','yearly'].map(function(g){
+      return '<button class="gran-btn '+(reportGranularity===g?'active':'')+'" data-gran="'+g+'">'+g.charAt(0).toUpperCase()+g.slice(1)+'</button>';
+    }).join('');
+    var body = groups.length===0
+      ? '<div class="report-empty">No completions logged yet — this fills in as tasks get ticked off.</div>'
+      : groups.map(renderPeriodGroup).join('');
+    return '<div class="report-card" style="max-width:720px;">' +
+      '<h3>Activity log — who did what, where, and when</h3>' +
+      '<div class="gran-row">'+granButtons+'</div>' +
+      body +
+      (allGroups.length > groups.length ? '<div class="report-note">Showing the 12 most recent '+reportGranularity+' periods.</div>' : '') +
+    '</div>';
+  }
+
+  function getTaskTitlesForChild(child){
+    var set = {};
+    state.tasks.forEach(function(t){ if(t.child===child) set[t.title]=true; });
+    state.history.forEach(function(h){ if(h.child===child) set[h.title]=true; });
+    return Object.keys(set).sort();
+  }
+
+  function computeTaskDayCounts(child, title){
+    var counts = {};
+    state.history.forEach(function(h){
+      if(h.child===child && h.title===title){
+        var d = new Date(h.completedAt);
+        var key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        counts[key] = (counts[key]||0) + 1;
+      }
+    });
+    return counts;
+  }
+
+  function renderHeatmap(dayCounts, weeksBack){
+    var today = new Date(); today.setHours(0,0,0,0);
+    var day = today.getDay();
+    var diffToMonday = (day===0 ? -6 : 1-day);
+    var thisMonday = new Date(today); thisMonday.setDate(today.getDate()+diffToMonday);
+    var startMonday = new Date(thisMonday); startMonday.setDate(thisMonday.getDate() - (weeksBack-1)*7);
+
+    var html = '<div class="heatmap">';
+    for(var w=0; w<weeksBack; w++){
+      html += '<div class="heatmap-col">';
+      for(var d=0; d<7; d++){
+        var day2 = new Date(startMonday); day2.setDate(startMonday.getDate() + w*7 + d);
+        var key = day2.getFullYear()+'-'+String(day2.getMonth()+1).padStart(2,'0')+'-'+String(day2.getDate()).padStart(2,'0');
+        var count = dayCounts[key] || 0;
+        var isFuture = day2 > today;
+        var label = day2.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short'});
+        var cls = isFuture ? 'heatmap-cell future' : (count>0 ? 'heatmap-cell filled' : 'heatmap-cell empty');
+        html += '<div class="'+cls+'" title="'+label+(count>0 ? ' — done' : '')+'"></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderTaskDrilldown(){
+    if(state.children.length===0){
+      return '<div class="report-card" style="max-width:720px;"><h3>Task history by child</h3><div class="report-empty">Add a child under Manage to see this.</div></div>';
+    }
+    var selChild = (drilldownChild && state.children.indexOf(drilldownChild)>=0) ? drilldownChild : state.children[0];
+    var titles = getTaskTitlesForChild(selChild);
+    var selTitle = (drilldownTitle && titles.indexOf(drilldownTitle)>=0) ? drilldownTitle : (titles[0] || null);
+
+    var body;
+    if(!selTitle){
+      body = '<div class="report-empty">No tasks logged for '+escapeHtml(selChild)+' yet.</div>';
+    } else {
+      var dayCounts = computeTaskDayCounts(selChild, selTitle);
+      var matching = state.history.filter(function(h){ return h.child===selChild && h.title===selTitle; })
+        .sort(function(a,b){ return b.completedAt - a.completedAt; });
+      body = renderHeatmap(dayCounts, 13) +
+        '<div class="heatmap-legend"><span class="heatmap-cell empty" style="display:inline-block;"></span> No &nbsp; <span class="heatmap-cell filled" style="display:inline-block;"></span> Done &nbsp;·&nbsp; last 13 weeks</div>' +
+        '<div class="report-note">'+matching.length+' completion'+(matching.length===1?'':'s')+' logged for this task</div>' +
+        (matching.length ? '<table class="report-table" style="margin-top:12px;"><thead><tr><th>Date</th><th>Day</th><th>Time</th></tr></thead><tbody>' +
+          matching.map(function(h){
+            var d = new Date(h.completedAt);
+            return '<tr><td>'+d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+'</td>' +
+              '<td>'+d.toLocaleDateString('en-AU',{weekday:'long'})+'</td>' +
+              '<td>'+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})+'</td></tr>';
+          }).join('') + '</tbody></table>' : '');
+    }
+
+    return '<div class="report-card" style="max-width:720px;">' +
+      '<h3>Task history by child — e.g. "which days did Maths revision"</h3>' +
+      '<div class="drilldown-select-row">' +
+        '<select id="drilldown-child">' + state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(c===selChild?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') + '</select>' +
+        '<select id="drilldown-title">' + titles.map(function(t){ return '<option value="'+escapeHtml(t)+'" '+(t===selTitle?'selected':'')+'>'+escapeHtml(t)+'</option>'; }).join('') + '</select>' +
+      '</div>' +
+      body +
+    '</div>';
+  }
+
+  function bindReportsEvents(){
+    document.querySelectorAll('.gran-btn').forEach(function(btn){
+      btn.onclick = function(){ reportGranularity = btn.getAttribute('data-gran'); render(); };
+    });
+    var dc = document.getElementById('drilldown-child');
+    if(dc) dc.onchange = function(e){ drilldownChild = e.target.value; drilldownTitle = null; render(); };
+    var dt = document.getElementById('drilldown-title');
+    if(dt) dt.onchange = function(e){ drilldownTitle = e.target.value; render(); };
+  }
+
+  function renderReportsPane(){
+    var overview = computeOverview();
+    return '<div class="masthead"><div><h1>Reports</h1><div class="sub">A snapshot of activity and progress</div></div></div>' +
+      '<div class="report-stats">' +
+        reportStatHtml(overview.total, 'Active tasks') +
+        reportStatHtml(overview.completions, 'Completions (all-time)') +
+        reportStatHtml(overview.avgPct+'%', 'Avg. done now') +
+        reportStatHtml(overview.onTimeRate===null ? '—' : overview.onTimeRate+'%', 'On-time rate') +
+      '</div>' +
+      renderTaskDrilldown() +
+      renderActivityLog() +
+      renderWeeklyChart() +
+      renderChildTable() +
+      renderHBarSection('Completions by subject', computeGroupStats('subject', uniqueSubjects(), subjectColor)) +
+      renderHBarSection('Completions by platform', computeGroupStats('platform', state.platforms, platformColor));
+  }
+
+  // ---- Modal ----
+  function openModal(id){
+    editingId = id;
+    var t = id ? findTask(id) : {title:'', child: state.children[0] || '', subject:'', platform:'School', type:'Adhoc', deadline:'', percent:0, notes:''};
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'overlay';
+    var subjects = uniqueSubjects();
+    overlay.innerHTML =
+      '<div class="modal">' +
+        '<h2>'+(id?'Edit task':'New task')+'</h2>' +
+        '<div class="field"><label>Title</label><input type="text" id="m-title" value="'+escapeHtml(t.title)+'" placeholder="e.g. Maths worksheet 4B"></div>' +
+        '<div class="field"><label>Child</label>' +
+          '<select id="m-child">' +
+            state.children.map(function(c){ return '<option value="'+escapeHtml(c)+'" '+(t.child===c?'selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('') +
+            '<option value="__new__">+ New child…</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field"><label>Subject</label>' +
+          '<select id="m-subject">' +
+            (subjects.length ? subjects.map(function(s){ return '<option value="'+escapeHtml(s)+'" '+(t.subject===s?'selected':'')+'>'+escapeHtml(s)+'</option>'; }).join('') : '') +
+            (t.subject && subjects.indexOf(t.subject)===-1 ? '<option value="'+escapeHtml(t.subject)+'" selected>'+escapeHtml(t.subject)+'</option>' : '') +
+            '<option value="__new__">+ New subject…</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Platform</label><select id="m-platform">' +
+            state.platforms.map(function(p){ return '<option value="'+escapeHtml(p)+'" '+(t.platform===p?'selected':'')+'>'+escapeHtml(p)+'</option>'; }).join('') +
+            '<option value="__new__">+ New platform…</option>' +
+          '</select></div>' +
+          '<div class="field"><label>Type</label>' +
+            '<div class="radio-group">' +
+              '<label><input type="radio" name="m-type" value="Adhoc" '+(t.type==='Adhoc'?'checked':'')+'> Adhoc</label>' +
+              '<label><input type="radio" name="m-type" value="Recurring" '+(t.type==='Recurring'?'checked':'')+'> Recurring</label>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="field" id="field-recurrence" style="display:'+(t.type==='Recurring'?'block':'none')+';"><label>Repeats</label><select id="m-recurrence">' +
+          RECUR_OPTIONS.map(function(r){ return '<option '+(t.recurrence===r?'selected':'')+'>'+r+'</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label id="label-deadline">'+(t.type==='Recurring'?'Deadline (required)':'Deadline (optional)')+'</label><input type="date" id="m-deadline" value="'+(t.deadline||'')+'"></div>' +
+          '<div class="field"><label>Percent done</label><input type="range" id="m-percent" min="0" max="100" step="5" value="'+t.percent+'"><div style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;margin-top:2px;" id="m-percent-out">'+t.percent+'%</div></div>' +
+        '</div>' +
+        '<div class="field"><label>Notes (optional)</label><textarea id="m-notes" rows="2" placeholder="Any extra detail">'+escapeHtml(t.notes||'')+'</textarea></div>' +
+        '<div id="m-error" style="display:none;color:var(--overdue);font-size:12px;margin-bottom:8px;"></div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="m-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" id="m-save">Save task</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('m-child').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        sel.value = state.children[0] || '__new__';
+        openPromptModal("Add a child", "Child's name", function(name){
+          if(state.children.indexOf(name)===-1) state.children.push(name);
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-platform').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        sel.value = state.platforms[0] || '__new__';
+        openPromptModal("Add a platform", "e.g. Online course", function(name){
+          if(state.platforms.indexOf(name)===-1) state.platforms.push(name);
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-subject').onchange = function(e){
+      if(e.target.value === '__new__'){
+        var sel = e.target;
+        var subjects = uniqueSubjects();
+        sel.value = subjects[0] || '__new__';
+        openPromptModal("Add a subject", "e.g. Maths", function(name){
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.selected = true;
+          sel.insertBefore(opt, sel.lastElementChild);
+        });
+      }
+    };
+    document.getElementById('m-percent').oninput = function(e){
+      document.getElementById('m-percent-out').textContent = e.target.value + '%';
+    };
+    document.querySelectorAll('input[name="m-type"]').forEach(function(r){
+      r.onchange = function(){
+        var checked = document.querySelector('input[name="m-type"]:checked').value;
+        document.getElementById('field-recurrence').style.display = checked==='Recurring' ? 'block' : 'none';
+        document.getElementById('label-deadline').textContent = checked==='Recurring' ? 'Deadline (required)' : 'Deadline (optional)';
+      };
+    });
+    document.getElementById('m-cancel').onclick = closeModal;
+    overlay.onclick = function(e){ if(e.target===overlay) closeModal(); };
+    document.getElementById('m-save').onclick = saveModal;
+  }
+
+  function closeModal(){
+    var o = document.getElementById('overlay');
+    if(o) o.remove();
+    editingId = null;
+  }
+
+  function saveModal(){
+    var errEl = document.getElementById('m-error');
+    errEl.style.display = 'none';
+    var title = document.getElementById('m-title').value.trim();
+    if(!title){ errEl.textContent = 'Give the task a title first.'; errEl.style.display='block'; return; }
+    var child = document.getElementById('m-child').value;
+    if(!child || child==='__new__'){ errEl.textContent = 'Pick or add a child first.'; errEl.style.display='block'; return; }
+    var subject = document.getElementById('m-subject').value;
+    if(!subject || subject==='__new__'){ errEl.textContent = 'Pick or add a subject first.'; errEl.style.display='block'; return; }
+    if(state.subjects.indexOf(subject)===-1) state.subjects.push(subject);
+    var platform = document.getElementById('m-platform').value;
+    if(!platform || platform==='__new__'){ errEl.textContent = 'Pick or add a platform first.'; errEl.style.display='block'; return; }
+    var type = document.querySelector('input[name="m-type"]:checked').value;
+    var recurrence = type==='Recurring' ? document.getElementById('m-recurrence').value : null;
+    var deadline = document.getElementById('m-deadline').value || null;
+    if(type==='Recurring' && !deadline){ errEl.textContent = 'Recurring tasks need a deadline so they know when to repeat.'; errEl.style.display='block'; return; }
+    var percent = parseInt(document.getElementById('m-percent').value, 10);
+    var notes = document.getElementById('m-notes').value.trim();
+
+    if(editingId){
+      var t = findTask(editingId);
+      t.title=title; t.child=child; t.subject=subject; t.platform=platform;
+      t.type=type; t.recurrence=recurrence; t.deadline=deadline; t.percent=percent; t.notes=notes;
+    } else {
+      state.tasks.push({
+        id: uid(), title:title, child:child, subject:subject, platform:platform,
+        type:type, recurrence:recurrence, deadline:deadline, percent:percent, notes:notes, createdAt: Date.now()
+      });
+    }
+    saveState();
+    closeModal();
+    render();
+  }
+
+  // ---- Bootstrap ----
+  (async function init(){
+    if(!isFirebaseConfigured()){
+      render(); // shows the "setup needed" screen
+      return;
+    }
+    try{
+      await initFirebase();
+    }catch(e){
+      document.getElementById('app').innerHTML = '<div class="loading">Could not connect to Firebase. Double-check FIREBASE_CONFIG in index.html.</div>';
+      return;
+    }
+    if(familyCode){
+      subscribeToFamily(); // renders once the first snapshot arrives
+    } else {
+      render(); // shows the join/create family screen
+    }
+  })();
+})();
 </script>
 </body>
 </html>

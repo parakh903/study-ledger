@@ -30,6 +30,7 @@
     --tab-inactive-bg:#E3E6E5;
     --deadline-overdue-bg:#F9DCDF;
     --deadline-soon-bg:#F6E4C6;
+    --status-done-bg:#DCF5EA;
     --overlay-bg:rgba(20,24,28,0.4);
     --radius:10px;
     --shadow-tab: 0 2px 0 rgba(0,0,0,0.06);
@@ -53,6 +54,7 @@
     --tab-inactive-bg:#000000;
     --deadline-overdue-bg:#3A1418;
     --deadline-soon-bg:#3A2A0A;
+    --status-done-bg:rgba(57,226,155,0.15);
     --overlay-bg:rgba(0,0,0,0.85);
   }
   *{box-sizing:border-box;}
@@ -202,6 +204,12 @@
   .period-count{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
   .period-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
   .period-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;border:1.5px solid;background:var(--card);white-space:nowrap;}
+  .activity-rows{display:flex;flex-direction:column;gap:8px;}
+  .activity-row{position:relative;background:var(--paper);border:1px solid var(--line-soft);border-radius:9px;padding:10px 30px 10px 12px;}
+  .activity-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px;flex-wrap:wrap;}
+  .activity-row-title{font-size:13.5px;font-weight:600;}
+  .activity-row-time{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);white-space:nowrap;}
+  .activity-row-delete{position:absolute;top:8px;right:6px;}
   .report-note{font-size:11px;color:var(--ink-faint);margin-top:10px;}
 
   /* Filters */
@@ -658,10 +666,21 @@
     if(t.percent < 100) return;
     logCompletion(t);
     if(t.type==='Recurring' && t.deadline){
-      var newDeadline = nextDeadline(t.deadline, t.recurrence || 'Weekly');
-      t.deadline = newDeadline;
-      t.percent = 0;
-      showToast('"'+t.title+'" repeats — next due '+formatDeadline(newDeadline));
+      var taskId = t.id;
+      // Wait a beat before rolling to the next cycle, so the checkbox visibly shows
+      // "done" for a moment instead of snapping straight back to empty — that instant
+      // reset was making it look like the tap hadn't registered, causing repeat taps
+      // and duplicate completions logged.
+      setTimeout(function(){
+        var fresh = findTask(taskId);
+        if(!fresh || fresh.percent < 100) return; // already changed by something else
+        var newDeadline = nextDeadline(fresh.deadline, fresh.recurrence || 'Weekly');
+        fresh.deadline = newDeadline;
+        fresh.percent = 0;
+        showToast('"'+fresh.title+'" repeats — next due '+formatDeadline(newDeadline));
+        saveState();
+        render();
+      }, 900);
     }
   }
 
@@ -1346,6 +1365,7 @@
           '<span class="pill pill-deadline deadline-ok">Due was '+deadlineText+'</span>' +
         '</div>' +
       '</div>' +
+      '<div class="task-actions"><button class="icon-btn" data-del-kind="history" data-del-id="'+h.id+'" title="Remove entry">✕</button></div>' +
     '</div>';
   }
 
@@ -1360,6 +1380,11 @@
         render();
       });
     };
+    document.querySelectorAll('[data-del-id]').forEach(function(btn){
+      btn.onclick = function(){
+        deleteActivityEntry(btn.getAttribute('data-del-kind'), btn.getAttribute('data-del-id'));
+      };
+    });
   }
 
   // ---- Reports ----
@@ -1520,10 +1545,10 @@
     var rows = [];
     state.progressLog.forEach(function(p){
       if(p.percent >= 100) return;
-      rows.push({timestamp:p.timestamp, child:p.child, subject:p.subject, platform:p.platform, title:p.title, kind:'progress', percent:p.percent});
+      rows.push({id:p.id, sourceType:'progress', timestamp:p.timestamp, child:p.child, subject:p.subject, platform:p.platform, title:p.title, kind:'progress', percent:p.percent});
     });
     state.history.forEach(function(h){
-      rows.push({timestamp:h.completedAt, child:h.child, subject:h.subject, platform:h.platform, title:h.title, kind:'completed', percent:100});
+      rows.push({id:h.id, sourceType:'history', timestamp:h.completedAt, child:h.child, subject:h.subject, platform:h.platform, title:h.title, kind:'completed', percent:100});
     });
     return rows;
   }
@@ -1559,6 +1584,18 @@
     return Object.keys(groups).sort().reverse().map(function(k){ return groups[k]; });
   }
 
+  function deleteActivityEntry(sourceType, id){
+    openConfirmModal('Remove this entry from the log? This can\'t be undone.', 'Remove', function(){
+      if(sourceType==='progress'){
+        state.progressLog = state.progressLog.filter(function(p){ return p.id !== id; });
+      } else {
+        state.history = state.history.filter(function(h){ return h.id !== id; });
+      }
+      saveState();
+      render();
+    });
+  }
+
   function renderPeriodGroup(group){
     var byChild = {};
     group.entries.forEach(function(r){ byChild[r.child] = (byChild[r.child]||0)+1; });
@@ -1566,23 +1603,28 @@
       return '<span class="period-chip" style="color:'+childColor(c)+';border-color:'+childColor(c)+';">'+escapeHtml(c)+' · '+byChild[c]+'</span>';
     }).join('');
     var rows = group.entries.slice().sort(function(a,b){ return b.timestamp - a.timestamp; }).map(function(r){
+      var childC = childColor(r.child);
+      var subColor = subjectColor(r.subject || 'General');
+      var platColor = platformColor(r.platform);
       var time = new Date(r.timestamp).toLocaleString('en-AU', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'});
-      var statusHtml = r.kind==='completed'
-        ? '<span style="color:var(--done);font-weight:700;">✓ Completed</span>'
-        : '<span style="color:var(--duesoon);font-weight:700;">'+r.percent+'% done</span>';
-      return '<tr>' +
-        '<td style="color:'+childColor(r.child)+';">'+escapeHtml(r.child)+'</td>' +
-        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(r.subject||'General')+'</td>' +
-        '<td style="color:'+platformColor(r.platform)+';">'+escapeHtml(r.platform)+'</td>' +
-        '<td style="font-family:\'Inter\',sans-serif;font-weight:500;color:var(--ink);">'+escapeHtml(r.title)+'</td>' +
-        '<td>'+statusHtml+'</td>' +
-        '<td>'+time+'</td>' +
-      '</tr>';
+      var statusPill = r.kind==='completed'
+        ? '<span class="pill" style="background:var(--status-done-bg);color:var(--done);font-weight:700;">✓ Completed</span>'
+        : '<span class="pill" style="background:var(--deadline-soon-bg);color:var(--duesoon);font-weight:700;">'+r.percent+'% done</span>';
+      return '<div class="activity-row">' +
+        '<button class="icon-btn activity-row-delete" data-del-kind="'+r.sourceType+'" data-del-id="'+r.id+'" title="Remove entry">✕</button>' +
+        '<div class="activity-row-top"><span class="activity-row-title">'+escapeHtml(r.title)+'</span><span class="activity-row-time">'+time+'</span></div>' +
+        '<div class="task-meta">' +
+          '<span class="pill pill-child" style="border:1.5px solid '+childC+';color:'+childC+';background-image:repeating-linear-gradient(45deg,'+hexToRgba(childC,0.22)+' 0 5px, transparent 5px 10px);">'+escapeHtml(r.child)+'</span>' +
+          '<span class="pill pill-subject" style="background:'+subColor+'">'+escapeHtml(r.subject||'General')+'</span>' +
+          '<span class="pill pill-platform" style="border:1.5px solid '+platColor+';color:'+platColor+'">'+escapeHtml(r.platform)+'</span>' +
+          statusPill +
+        '</div>' +
+      '</div>';
     }).join('');
     return '<div class="period-group">' +
       '<div class="period-header"><span class="period-title">'+escapeHtml(group.label)+'</span><span class="period-count">'+group.entries.length+' update'+(group.entries.length===1?'':'s')+'</span></div>' +
       '<div class="period-chips">'+chipRow+'</div>' +
-      '<table class="report-table"><thead><tr><th>Child</th><th>Subject</th><th>Platform</th><th>Task</th><th>Status</th><th>When</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+      '<div class="activity-rows">'+rows+'</div>' +
     '</div>';
   }
 
@@ -1630,6 +1672,11 @@
     if(afEnd) afEnd.onchange = function(e){ activityFilters.endDate = e.target.value; render(); };
     var afClear = document.getElementById('af-clear');
     if(afClear) afClear.onclick = function(){ activityFilters = {child:'', platform:'', subject:'', startDate:'', endDate:''}; render(); };
+    document.querySelectorAll('[data-del-id]').forEach(function(btn){
+      btn.onclick = function(){
+        deleteActivityEntry(btn.getAttribute('data-del-kind'), btn.getAttribute('data-del-id'));
+      };
+    });
   }
 
   function renderReportsPane(){

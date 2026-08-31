@@ -228,6 +228,7 @@
 
   /* Task list */
   .task-list{display:flex;flex-direction:column;gap:8px;}
+  .task-section-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin:4px 0 8px;}
   .empty{
     text-align:center;
     padding:50px 20px;
@@ -408,6 +409,7 @@
 
   var state = {children:[], tasks:[]};
   var filters = {child:'All', subject:'', platform:'', type:'', status:''};
+  var showCompleted = false;
   var editingId = null;
   var activeTab = 'tasks';
   var controlsExpanded = false;
@@ -499,13 +501,75 @@
         state = defaultState();
         familyDocRef().set(state).catch(function(){});
       }
+      var grew = maybeGrowRecurringSeries();
       setSyncIndicator(true);
       render();
+      if(grew) saveState();
     }, function(err){
       console.error(err);
       setSyncIndicator(false);
       showToast("Can't reach the server — changes will retry when back online.");
     });
+  }
+
+  // Recurring tasks are a *series* of independent occurrences, not one task that resets.
+  // Each occurrence keeps its own deadline and % — so if one is missed, the next one still
+  // appears on schedule as its own card, and both stay visible until each is dealt with.
+  // Runs once per snapshot (the single place state changes land), so growth stays stable
+  // instead of racing itself.
+  function maybeGrowRecurringSeries(){
+    var today = todayStr();
+    var changed = false;
+    var toRemove = [];
+
+    // Backfill seriesId for recurring tasks created before this existed.
+    state.tasks.forEach(function(t){
+      if(t.type==='Recurring' && !t.seriesId){
+        t.seriesId = t.id;
+        t.seriesLatest = true;
+      }
+    });
+
+    var latestOnes = state.tasks.filter(function(t){ return t.type==='Recurring' && t.seriesLatest; });
+    latestOnes.forEach(function(t){
+      var current = t;
+      var spawned = 0;
+      // Loop so a long absence (several missed weeks) catches up fully in one pass,
+      // rather than trickling forward one occurrence per app reload.
+      while(current.deadline && (current.deadline < today || current.percent >= 100) && spawned < 500){
+        var wasDone = current.percent >= 100;
+        var next = {
+          id: uid(), title:current.title, child:current.child, subject:current.subject, platform:current.platform,
+          type:'Recurring', recurrence:current.recurrence, deadline: nextDeadline(current.deadline, current.recurrence || 'Weekly'),
+          percent:0, notes:current.notes, createdAt: Date.now(), seriesId:current.seriesId, seriesLatest:true
+        };
+        current.seriesLatest = false;
+        state.tasks.push(next);
+        changed = true;
+        if(wasDone) toRemove.push(current.id); // done and superseded — record already lives in history
+        spawned++;
+        current = next;
+      }
+      if(spawned === 1){
+        showToast('"'+t.title+'" — next one due '+formatDeadline(current.deadline));
+      } else if(spawned > 1){
+        showToast('"'+t.title+'" — caught up to '+formatDeadline(current.deadline)+' ('+spawned+' missed)');
+      }
+    });
+
+    // Clean up any older, non-latest occurrence that's since been completed (e.g. a late
+    // catch-up on a missed one) — its record stays in Reports/History, just not the active list.
+    state.tasks.forEach(function(t){
+      if(t.type==='Recurring' && !t.seriesLatest && t.percent>=100 && toRemove.indexOf(t.id)===-1){
+        toRemove.push(t.id);
+      }
+    });
+
+    if(toRemove.length){
+      state.tasks = state.tasks.filter(function(t){ return toRemove.indexOf(t.id)===-1; });
+      changed = true;
+    }
+    return changed;
   }
 
   function defaultState(){
@@ -665,23 +729,9 @@
   function handleCompletion(t){
     if(t.percent < 100) return;
     logCompletion(t);
-    if(t.type==='Recurring' && t.deadline){
-      var taskId = t.id;
-      // Wait a beat before rolling to the next cycle, so the checkbox visibly shows
-      // "done" for a moment instead of snapping straight back to empty — that instant
-      // reset was making it look like the tap hadn't registered, causing repeat taps
-      // and duplicate completions logged.
-      setTimeout(function(){
-        var fresh = findTask(taskId);
-        if(!fresh || fresh.percent < 100) return; // already changed by something else
-        var newDeadline = nextDeadline(fresh.deadline, fresh.recurrence || 'Weekly');
-        fresh.deadline = newDeadline;
-        fresh.percent = 0;
-        showToast('"'+fresh.title+'" repeats — next due '+formatDeadline(newDeadline));
-        saveState();
-        render();
-      }, 900);
-    }
+    // No more in-place reset here — a completed recurring occurrence just stays "done".
+    // maybeGrowRecurringSeries() spawns its successor as a separate card once this
+    // change syncs, so the checkbox behaves exactly like any adhoc task's tick.
   }
 
   function getStatus(task){
@@ -999,6 +1049,7 @@
     html += selectHtml('f-platform','All platforms', state.platforms, filters.platform);
     html += selectHtml('f-type','All types', ['Recurring','Adhoc'], filters.type);
     html += selectHtml('f-status','All statuses', STATUS_ORDER.map(function(k){return STATUS_META[k].label;}), filters.status);
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);"><input type="checkbox" id="f-show-completed" '+(showCompleted?'checked':'')+'> Show completed</label>';
     html += '</div>';
     return html;
   }
@@ -1015,6 +1066,7 @@
     document.getElementById('f-platform').onchange = function(e){ filters.platform=e.target.value; render(); };
     document.getElementById('f-type').onchange = function(e){ filters.type=e.target.value; render(); };
     document.getElementById('f-status').onchange = function(e){ filters.status=e.target.value; render(); };
+    document.getElementById('f-show-completed').onchange = function(e){ showCompleted = e.target.checked; render(); };
   }
 
   function statusLabelToKey(label){
@@ -1024,6 +1076,7 @@
 
   function filteredTasks(){
     var list = tasksForChildScope().filter(function(t){
+      if (!showCompleted && t.percent >= 100) return false;
       if (filters.subject && t.subject !== filters.subject) return false;
       if (filters.platform && t.platform !== filters.platform) return false;
       if (filters.type && t.type !== filters.type) return false;
@@ -1159,9 +1212,15 @@
     if(list.length===0){
       return '<div class="empty"><h3>Nothing here</h3>Add a task, or clear a filter to see more.</div>';
     }
-    var html = '<div class="task-list">';
-    list.forEach(function(t){ html += renderTask(t); });
-    html += '</div>';
+    var routine = list.filter(function(t){ return (t.platform||'').toLowerCase()==='home revision'; });
+    var deadlines = list.filter(function(t){ return (t.platform||'').toLowerCase()!=='home revision'; });
+    var html = '';
+    if(deadlines.length){
+      html += '<div class="task-section-label">Deadlines</div><div class="task-list">' + deadlines.map(renderTask).join('') + '</div>';
+    }
+    if(routine.length){
+      html += '<div class="task-section-label" style="margin-top:'+(deadlines.length?'18px':'0')+';">Daily routine</div><div class="task-list">' + routine.map(renderTask).join('') + '</div>';
+    }
     return html;
   }
 
@@ -1889,9 +1948,12 @@
       logProgress(t, oldPercent);
       handleCompletion(t);
     } else {
+      var newId = uid();
       state.tasks.push({
-        id: uid(), title:title, child:child, subject:subject, platform:platform,
-        type:type, recurrence:recurrence, deadline:deadline, percent:percent, notes:notes, createdAt: Date.now()
+        id: newId, title:title, child:child, subject:subject, platform:platform,
+        type:type, recurrence:recurrence, deadline:deadline, percent:percent, notes:notes, createdAt: Date.now(),
+        seriesId: type==='Recurring' ? newId : undefined,
+        seriesLatest: type==='Recurring' ? true : undefined
       });
     }
     saveState();

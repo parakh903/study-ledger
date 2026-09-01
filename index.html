@@ -528,13 +528,27 @@
     var changed = false;
     var toRemove = [];
 
-    // Backfill seriesId for recurring tasks created before this existed.
-    state.tasks.forEach(function(t){
-      if(t.type==='Recurring' && !t.seriesId){
-        t.seriesId = t.id;
-        t.seriesLatest = true;
-      }
-    });
+    // Backfill: recurring tasks that predate the series system have no seriesId. Rather than
+    // treating each as its own brand-new series (which left old duplicates like several days'
+    // worth of "Maths revision" all sitting there at once), group them by identity and recognize
+    // them as successive occurrences of the same series — only the most recent stays "latest".
+    var orphans = state.tasks.filter(function(t){ return t.type==='Recurring' && !t.seriesId; });
+    if(orphans.length){
+      var groups = {};
+      orphans.forEach(function(t){
+        var key = [t.child, t.title, t.subject, t.platform, t.recurrence].join('|');
+        (groups[key] = groups[key] || []).push(t);
+      });
+      Object.keys(groups).forEach(function(key){
+        var group = groups[key];
+        group.sort(function(a,b){ return (a.deadline||'').localeCompare(b.deadline||''); });
+        var seriesId = uid();
+        group.forEach(function(t, i){
+          t.seriesId = seriesId;
+          t.seriesLatest = (i === group.length - 1);
+        });
+      });
+    }
 
     var latestOnes = state.tasks.filter(function(t){ return t.type==='Recurring' && t.seriesLatest; });
     latestOnes.forEach(function(t){
@@ -570,10 +584,14 @@
       }
     });
 
-    // Clean up any older, non-latest occurrence that's since been completed (e.g. a late
-    // catch-up on a missed one) — its record stays in Reports/History, just not the active list.
+    // Clean up any older, non-latest occurrence: for compulsory work, only once it's been
+    // completed (e.g. a late catch-up); for optional Home revision, any leftover non-latest
+    // occurrence at all — including pre-existing duplicates from before series-grouping existed.
+    // Either way the record stays in Reports/History, just not the active list.
     state.tasks.forEach(function(t){
-      if(t.type==='Recurring' && !t.seriesLatest && t.percent>=100 && toRemove.indexOf(t.id)===-1){
+      if(t.type!=='Recurring' || t.seriesLatest) return;
+      if(toRemove.indexOf(t.id)!==-1) return;
+      if(t.percent>=100 || isOptionalPlatform(t.platform)){
         toRemove.push(t.id);
       }
     });

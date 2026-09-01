@@ -228,17 +228,9 @@
 
   /* Task list */
   .task-list{display:flex;flex-direction:column;gap:8px;}
-  .task-section-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin:4px 0 8px;}
-  .task-section-toggle{display:block;width:100%;text-align:left;border:none;background:none;font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;padding:8px 0;}
-  .task-section-toggle:hover{color:var(--ink);}
-  .routine-list{background:var(--card);border:1px solid var(--line-soft);border-radius:10px;padding:2px 12px;margin-top:8px;}
-  .routine-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft);}
-  .routine-row:last-child{border-bottom:none;}
-  .routine-check{width:20px;height:20px;flex-shrink:0;}
-  .routine-title{flex:1;font-size:13.5px;font-weight:500;}
-  .routine-row.done .routine-title{text-decoration:line-through;color:var(--ink-soft);}
-  .routine-row.done .routine-check{background:var(--status-color);color:#fff;}
-  .routine-pct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);flex-shrink:0;}
+  .platform-tabs{display:flex;gap:7px;overflow-x:auto;margin-bottom:14px;flex-wrap:wrap;}
+  .ptab{border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:6px 15px;border-radius:20px;font-size:12.5px;font-weight:700;font-family:'Inter',sans-serif;white-space:nowrap;}
+  .ptab.active{background:var(--ptab-color, var(--brand));border-color:var(--ptab-color, var(--brand));color:#fff;}
   .empty{
     text-align:center;
     padding:50px 20px;
@@ -420,7 +412,6 @@
   var state = {children:[], tasks:[]};
   var filters = {child:'All', subject:'', platform:'', type:'', status:''};
   var showCompleted = false;
-  var routineExpanded = true;
   var editingId = null;
   var activeTab = 'tasks';
   var controlsExpanded = false;
@@ -854,6 +845,7 @@
       document.getElementById('btn-new').onclick = function(){ openModal(null); };
       document.getElementById('btn-toggle-controls').onclick = function(){ controlsExpanded = !controlsExpanded; render(); };
       bindTabEvents();
+      bindPlatformTabEvents();
       if(controlsExpanded){
         bindFilterEvents();
         bindSortRowEvents();
@@ -994,9 +986,28 @@
         '<button class="btn btn-primary" id="btn-new">+ New task</button>' +
       '</div>' +
       renderTabs() +
+      renderPlatformTabs() +
       renderControlsBar() +
       (controlsExpanded ? '<div class="controls-expanded">' + renderFilters(subjects) + renderSortRow() + '</div>' : '') +
       renderTaskList();
+  }
+
+  // Platform tabs — always reflect whatever's in state.platforms, so a newly added
+  // platform (under Manage) shows up here automatically with no extra setup.
+  function renderPlatformTabs(){
+    var html = '<div class="platform-tabs">';
+    html += '<button class="ptab '+(filters.platform===''?'active':'')+'" data-platform="">All</button>';
+    state.platforms.forEach(function(p){
+      html += '<button class="ptab '+(filters.platform===p?'active':'')+'" data-platform="'+escapeHtml(p)+'" style="--ptab-color:'+platformColor(p)+'">'+escapeHtml(p)+'</button>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function bindPlatformTabEvents(){
+    document.querySelectorAll('[data-platform]').forEach(function(el){
+      el.onclick = function(){ filters.platform = el.getAttribute('data-platform'); render(); };
+    });
   }
 
   function renderControlsBar(){
@@ -1057,7 +1068,6 @@
   function renderFilters(subjects){
     var html = '<div class="filters">';
     html += selectHtml('f-subject','All subjects', subjects, filters.subject);
-    html += selectHtml('f-platform','All platforms', state.platforms, filters.platform);
     html += selectHtml('f-type','All types', ['Recurring','Adhoc'], filters.type);
     html += selectHtml('f-status','All statuses', STATUS_ORDER.map(function(k){return STATUS_META[k].label;}), filters.status);
     html += '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);"><input type="checkbox" id="f-show-completed" '+(showCompleted?'checked':'')+'> Show completed</label>';
@@ -1074,7 +1084,6 @@
   }
   function bindFilterEvents(){
     document.getElementById('f-subject').onchange = function(e){ filters.subject=e.target.value; render(); };
-    document.getElementById('f-platform').onchange = function(e){ filters.platform=e.target.value; render(); };
     document.getElementById('f-type').onchange = function(e){ filters.type=e.target.value; render(); };
     document.getElementById('f-status').onchange = function(e){ filters.status=e.target.value; render(); };
     document.getElementById('f-show-completed').onchange = function(e){ showCompleted = e.target.checked; render(); };
@@ -1223,35 +1232,7 @@
     if(list.length===0){
       return '<div class="empty"><h3>Nothing here</h3>Add a task, or clear a filter to see more.</div>';
     }
-    var routine = list.filter(function(t){ return (t.platform||'').toLowerCase()==='home revision'; });
-    var deadlines = list.filter(function(t){ return (t.platform||'').toLowerCase()!=='home revision'; });
-    var html = '';
-    if(deadlines.length){
-      html += '<div class="task-section-label">Deadlines</div><div class="task-list">' + deadlines.map(renderTask).join('') + '</div>';
-    }
-    if(routine.length){
-      html += '<button class="task-section-toggle" id="btn-toggle-routine" style="margin-top:'+(deadlines.length?'18px':'0')+';">' +
-        (routineExpanded ? '▾' : '▸') + ' Daily routine (' + routine.length + ')' +
-      '</button>';
-      if(routineExpanded){
-        html += '<div class="routine-list">' + routine.map(renderRoutineRow).join('') + '</div>';
-      }
-    }
-    return html;
-  }
-
-  // Daily routine tasks get a compact, tap-to-tick checklist row instead of a full card —
-  // these are meant to be quick daily habits, not deadline items needing all the detail.
-  function renderRoutineRow(t){
-    var status = getStatus(t);
-    var meta = STATUS_META[status];
-    var done = status==='done';
-    return '<div class="routine-row'+(done?' done':'')+'" style="--status-color:'+meta.color+'">' +
-      '<button class="task-check routine-check" data-action="toggle" data-id="'+t.id+'">'+(done?'✓':'')+'</button>' +
-      '<span class="routine-title">'+escapeHtml(t.title)+'</span>' +
-      (t.percent>0 && t.percent<100 ? '<span class="routine-pct">'+t.percent+'%</span>' : '') +
-      '<button class="icon-btn" data-action="edit" data-id="'+t.id+'" title="Details">✎</button>' +
-    '</div>';
+    return '<div class="task-list">' + list.map(renderTask).join('') + '</div>';
   }
 
   function renderTask(t){
@@ -1289,8 +1270,6 @@
   }
 
   function bindTaskEvents(){
-    var routineBtn = document.getElementById('btn-toggle-routine');
-    if(routineBtn) routineBtn.onclick = function(){ routineExpanded = !routineExpanded; render(); };
     document.querySelectorAll('[data-action="toggle"]').forEach(function(el){
       el.onclick = function(){
         var t = findTask(el.getAttribute('data-id'));

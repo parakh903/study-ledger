@@ -357,6 +357,15 @@
   .sync-dot.offline{background:var(--overdue);}
   .status-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
 
+  /* Backup reminder banner */
+  .backup-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--brand-tint);border:1px solid var(--brand);border-radius:10px;padding:11px 14px;margin-bottom:14px;flex-wrap:wrap;}
+  .backup-banner-text{font-size:12.5px;color:var(--ink);flex:1;min-width:180px;line-height:1.4;}
+  .backup-banner-text strong{font-family:'Fraunces',serif;font-weight:600;font-size:13.5px;}
+  .backup-banner-actions{display:flex;gap:8px;flex-shrink:0;}
+  .backup-reminder-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .backup-reminder-row select, .backup-reminder-row input[type=number]{width:auto;}
+  .backup-reminder-note{font-size:11px;color:var(--ink-faint);margin-top:6px;}
+
   @media (max-width:600px){
     .stamps{grid-template-columns:repeat(3,1fr);}
     .stamp:nth-child(4), .stamp:nth-child(5){display:none;}
@@ -603,12 +612,19 @@
     return changed;
   }
 
+  function defaultBackupReminder(){
+    return {mode:'interval', dayOfMonth:1, intervalDays:14};
+  }
+
   function defaultState(){
     var viewId = uid();
     return {
       children:[], subjects:[], platforms: DEFAULT_PLATFORMS.slice(), tasks:[], history:[], progressLog:[],
       views:[{id:viewId, name:'Priority', levels:[{field:'status',dir:'asc'},{field:'deadline',dir:'asc'}]}],
-      activeViewId: viewId
+      activeViewId: viewId,
+      settings:{backupReminder: defaultBackupReminder()},
+      lastBackupDate: null,
+      backupDismissedDate: null
     };
   }
 
@@ -628,6 +644,10 @@
     if(!s.activeViewId || !s.views.some(function(v){ return v.id===s.activeViewId; })){
       s.activeViewId = s.views[0].id;
     }
+    s.settings = s.settings || {};
+    if(!s.settings.backupReminder) s.settings.backupReminder = defaultBackupReminder();
+    if(s.lastBackupDate === undefined) s.lastBackupDate = null;
+    if(s.backupDismissedDate === undefined) s.backupDismissedDate = null;
     return s;
   }
 
@@ -857,8 +877,9 @@
     else if(activeTab==='history') screenHtml = renderHistoryPane();
     else if(activeTab==='reports') screenHtml = renderReportsPane();
     else screenHtml = renderManagePane();
-    app.innerHTML = renderStatusBar() + renderTopTabs() + screenHtml;
+    app.innerHTML = renderStatusBar() + renderBackupBanner() + renderTopTabs() + screenHtml;
     setSyncIndicator(true);
+    bindBackupBannerEvents();
 
     document.getElementById('btn-switch-profile').onclick = function(){
       profile = null;
@@ -895,6 +916,7 @@
         if(file) importBackupFile(file);
         e.target.value = '';
       };
+      bindBackupReminderSettings(document);
       bindManageEvents(document);
     } else if(activeTab==='history'){
       bindHistoryEvents();
@@ -1373,6 +1395,76 @@
     showToast('Backup downloaded.');
   }
 
+  // All of the app's export/backup formats, run one after another with a short
+  // stagger so mobile browsers (Safari/Chrome) don't block a second same-tick download.
+  // Add future export formats (e.g. a CSV export) to this list and the reminder banner
+  // will pick them up automatically.
+  var BACKUP_EXPORTERS = [exportBackup];
+
+  function runAllBackupExports(){
+    BACKUP_EXPORTERS.forEach(function(fn, i){
+      setTimeout(fn, i * 350);
+    });
+    state.lastBackupDate = todayStr();
+    state.backupDismissedDate = null;
+    saveState();
+  }
+
+  // ---- Backup reminder banner ----
+  function isBackupDue(){
+    var settings = (state.settings && state.settings.backupReminder) || defaultBackupReminder();
+    var today = new Date(todayStr()+'T00:00:00');
+    var last = state.lastBackupDate ? new Date(state.lastBackupDate+'T00:00:00') : null;
+
+    var due;
+    if(settings.mode === 'monthly'){
+      var dom = settings.dayOfMonth || 1;
+      // Most recent occurrence of dayOfMonth on or before today.
+      var trigger = new Date(today.getFullYear(), today.getMonth(), dom);
+      if(trigger > today) trigger.setMonth(trigger.getMonth()-1);
+      due = !last || last < trigger;
+    } else {
+      var intervalDays = settings.intervalDays || 14;
+      if(!last){ due = true; }
+      else {
+        var diffDays = Math.round((today-last)/86400000);
+        due = diffDays >= intervalDays;
+      }
+    }
+    if(!due) return false;
+    if(state.backupDismissedDate === todayStr()) return false;
+    return true;
+  }
+
+  function renderBackupBanner(){
+    if(!isBackupDue()) return '';
+    var settings = (state.settings && state.settings.backupReminder) || defaultBackupReminder();
+    var message = settings.mode === 'monthly'
+      ? "It's that day of the month — time for a backup download."
+      : "It's been a while since your last backup download.";
+    return '<div class="backup-banner" id="backup-banner">' +
+      '<div class="backup-banner-text"><strong>Back up your data</strong><br>'+message+'</div>' +
+      '<div class="backup-banner-actions">' +
+        '<button class="btn btn-primary btn-sm" id="btn-backup-banner-now">Download now</button>' +
+        '<button class="btn btn-ghost btn-sm" id="btn-backup-banner-dismiss">Not now</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindBackupBannerEvents(){
+    var banner = document.getElementById('backup-banner');
+    if(!banner) return;
+    document.getElementById('btn-backup-banner-now').onclick = function(){
+      runAllBackupExports();
+      render();
+    };
+    document.getElementById('btn-backup-banner-dismiss').onclick = function(){
+      state.backupDismissedDate = todayStr();
+      saveState();
+      render();
+    };
+  }
+
   function importBackupFile(file){
     var reader = new FileReader();
     reader.onload = function(ev){
@@ -1413,6 +1505,7 @@
           '<button class="btn" id="btn-export-backup" style="margin-right:8px;">Download backup (.json)</button>' +
           '<button class="btn btn-ghost" id="btn-import-backup">Restore from backup</button>' +
           '<input type="file" id="import-file-input" accept="application/json" style="display:none;">' +
+          renderBackupReminderSettings() +
         '</div>' +
         '<div class="manage-key">' +
           '<span><span class="type-swatch solid" style="--sw-color:'+(theme==='dark'?SUBJECT_SOLID_DARK[0]:SUBJECT_SOLID[0])+'"></span>Subject — solid</span>' +
@@ -1428,6 +1521,59 @@
           '<button class="btn" id="btn-leave-family" style="color:var(--overdue);border-color:var(--overdue);">Leave this family</button>' +
         '</div>' +
       '</div>';
+  }
+
+  function renderBackupReminderSettings(){
+    var settings = (state.settings && state.settings.backupReminder) || defaultBackupReminder();
+    var domOptions = '';
+    for(var d=1; d<=28; d++){
+      domOptions += '<option value="'+d+'" '+(settings.dayOfMonth===d?'selected':'')+'>'+d+'</option>';
+    }
+    var lastBackupText = state.lastBackupDate ? formatDeadline(state.lastBackupDate) : 'never recorded';
+    return '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);">' +
+      '<label style="display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Remind me</label>' +
+      '<div class="radio-group">' +
+        '<label><input type="radio" name="backup-reminder-mode" value="monthly" '+(settings.mode==='monthly'?'checked':'')+'> Monthly</label>' +
+        '<label><input type="radio" name="backup-reminder-mode" value="interval" '+(settings.mode==='interval'?'checked':'')+'> Every few days</label>' +
+      '</div>' +
+      '<div class="backup-reminder-row" id="backup-reminder-monthly-row" style="display:'+(settings.mode==='monthly'?'flex':'none')+';">' +
+        'On day <select id="backup-reminder-dom">'+domOptions+'</select> of each month' +
+      '</div>' +
+      '<div class="backup-reminder-row" id="backup-reminder-interval-row" style="display:'+(settings.mode==='interval'?'flex':'none')+';">' +
+        'Every <input type="number" id="backup-reminder-days" min="1" max="365" value="'+(settings.intervalDays||14)+'" style="width:60px;"> days since my last backup' +
+      '</div>' +
+      '<div class="backup-reminder-note">Last backup downloaded: '+lastBackupText+'.</div>' +
+    '</div>';
+  }
+
+  function bindBackupReminderSettings(root){
+    var settings = (state.settings && state.settings.backupReminder) || defaultBackupReminder();
+    root.querySelectorAll('input[name="backup-reminder-mode"]').forEach(function(r){
+      r.onchange = function(){
+        settings.mode = document.querySelector('input[name="backup-reminder-mode"]:checked').value;
+        state.settings.backupReminder = settings;
+        saveState();
+        render();
+      };
+    });
+    var domSelect = root.querySelector('#backup-reminder-dom');
+    if(domSelect){
+      domSelect.onchange = function(e){
+        settings.dayOfMonth = parseInt(e.target.value, 10);
+        state.settings.backupReminder = settings;
+        saveState();
+      };
+    }
+    var daysInput = root.querySelector('#backup-reminder-days');
+    if(daysInput){
+      daysInput.onchange = function(e){
+        var v = parseInt(e.target.value, 10);
+        if(!v || v < 1) v = 1;
+        settings.intervalDays = v;
+        state.settings.backupReminder = settings;
+        saveState();
+      };
+    }
   }
 
   function chipHtml(kind, name){

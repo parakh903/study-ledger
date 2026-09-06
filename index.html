@@ -1401,9 +1401,10 @@
   // will pick them up automatically.
   var BACKUP_EXPORTERS = [exportBackup];
 
-  function runAllBackupExports(){
+  function runAllBackupExports(staggerMs){
+    var delay = (typeof staggerMs === 'number') ? staggerMs : 350;
     BACKUP_EXPORTERS.forEach(function(fn, i){
-      setTimeout(fn, i * 350);
+      setTimeout(fn, i * delay);
     });
     state.lastBackupDate = todayStr();
     state.backupDismissedDate = null;
@@ -1543,6 +1544,10 @@
         'Every <input type="number" id="backup-reminder-days" min="1" max="365" value="'+(settings.intervalDays||14)+'" style="width:60px;"> days since my last backup' +
       '</div>' +
       '<div class="backup-reminder-note">Last backup downloaded: '+lastBackupText+'.</div>' +
+      '<div style="margin-top:10px;">' +
+        '<button class="btn btn-ghost btn-sm" id="btn-backup-download-all-test">Download all backup files now</button>' +
+        '<div class="backup-reminder-note">Runs every export format with a 2–3 second gap between files — use this to test, even if a reminder isn\'t due yet.</div>' +
+      '</div>' +
     '</div>';
   }
 
@@ -1572,6 +1577,13 @@
         settings.intervalDays = v;
         state.settings.backupReminder = settings;
         saveState();
+      };
+    }
+    var testBtn = root.querySelector('#btn-backup-download-all-test');
+    if(testBtn){
+      testBtn.onclick = function(){
+        runAllBackupExports(2500);
+        render();
       };
     }
   }

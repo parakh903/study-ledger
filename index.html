@@ -366,6 +366,14 @@
   .backup-reminder-row select, .backup-reminder-row input[type=number]{width:auto;}
   .backup-reminder-note{font-size:11px;color:var(--ink-faint);margin-top:6px;}
 
+  /* Task alert banners (overdue / home revision) */
+  .alert-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;border-radius:10px;padding:11px 14px;margin-bottom:10px;flex-wrap:wrap;}
+  .alert-banner-text{font-size:12.5px;color:var(--ink);flex:1;min-width:180px;line-height:1.4;}
+  .alert-banner-text strong{font-family:'Fraunces',serif;font-weight:600;font-size:13.5px;}
+  .alert-banner-actions{display:flex;gap:8px;flex-shrink:0;}
+  .alert-overdue{background:var(--deadline-overdue-bg);border:1px solid var(--overdue);}
+  .alert-homerevision{background:var(--deadline-soon-bg);border:1px solid var(--duesoon);}
+
   @media (max-width:600px){
     .stamps{grid-template-columns:repeat(3,1fr);}
     .stamp:nth-child(4), .stamp:nth-child(5){display:none;}
@@ -530,6 +538,118 @@
   // instead of racing itself.
   function isOptionalPlatform(platform){
     return (platform||'').toLowerCase() === 'home revision';
+  }
+
+  // ---- Task alert banners (overdue tasks / stalled home revision) ----
+  // Dismissal is stored on-device (like the profile picker itself), not in the synced
+  // family state, since "who's using this device" is already a per-device choice.
+  function getDismissedAlerts(){
+    try { return JSON.parse(localStorage.getItem('ledger-alerts-dismissed') || '{}'); }
+    catch(e){ return {}; }
+  }
+  function isAlertDismissed(key){
+    return getDismissedAlerts()[key] === todayStr();
+  }
+  function setAlertDismissed(key){
+    var d = getDismissedAlerts();
+    d[key] = todayStr();
+    localStorage.setItem('ledger-alerts-dismissed', JSON.stringify(d));
+  }
+
+  function homeRevisionGapDays(child){
+    // Days since this child's most recent completed Home revision task.
+    // Returns null if there's no completion on record yet (nothing to measure from).
+    var last = null;
+    state.history.forEach(function(h){
+      if(h.child !== child || !isOptionalPlatform(h.platform)) return;
+      if(last === null || h.completedAt > last) last = h.completedAt;
+    });
+    if(last === null) return null;
+    var today = new Date(todayStr()+'T00:00:00');
+    var lastDate = new Date(dateStrFromTs(last)+'T00:00:00');
+    return Math.round((today-lastDate)/86400000);
+  }
+
+  function childHasHomeRevisionSeries(child){
+    return state.tasks.some(function(t){ return t.child===child && isOptionalPlatform(t.platform); }) ||
+           state.history.some(function(h){ return h.child===child && isOptionalPlatform(h.platform); });
+  }
+
+  function getHomeRevisionAlertChildren(){
+    // Children with a Home revision series whose last completion was more than 1 day ago.
+    var out = [];
+    state.children.forEach(function(c){
+      if(!childHasHomeRevisionSeries(c)) return;
+      var gap = homeRevisionGapDays(c);
+      if(gap !== null && gap > 1) out.push({child:c, gapDays:gap});
+    });
+    return out;
+  }
+
+  function getOverdueTasksByChild(){
+    // Compulsory platforms only (School/Tuition/custom) — Home revision misses quietly
+    // clear away by design, so they never sit "overdue" in the active list.
+    var map = {};
+    state.tasks.forEach(function(t){
+      if(isOptionalPlatform(t.platform)) return;
+      if(getStatus(t) !== 'overdue') return;
+      (map[t.child] = map[t.child] || []).push(t);
+    });
+    return map;
+  }
+
+  function renderTaskAlertBanners(){
+    if(!profile) return '';
+    var html = '';
+    var overdueMap = getOverdueTasksByChild();
+    var hrAlerts = getHomeRevisionAlertChildren();
+
+    if(profile.type === 'child'){
+      var mineOverdue = overdueMap[profile.name] || [];
+      var okey = 'overdue:'+profile.name;
+      if(mineOverdue.length && !isAlertDismissed(okey)){
+        html += '<div class="alert-banner alert-overdue" data-alert-key="'+escapeHtml(okey)+'">' +
+          '<div class="alert-banner-text"><strong>Overdue</strong><br>You have '+mineOverdue.length+' task'+(mineOverdue.length>1?'s':'')+' past due.</div>' +
+          '<div class="alert-banner-actions"><button class="btn btn-ghost btn-sm alert-dismiss-btn" data-dismiss-key="'+escapeHtml(okey)+'">Not now</button></div>' +
+        '</div>';
+      }
+      var mineHr = hrAlerts.filter(function(a){ return a.child===profile.name; })[0];
+      var hkey = 'homerevision:'+profile.name;
+      if(mineHr && !isAlertDismissed(hkey)){
+        html += '<div class="alert-banner alert-homerevision" data-alert-key="'+escapeHtml(hkey)+'">' +
+          '<div class="alert-banner-text"><strong>Home revision</strong><br>You haven\'t completed it in '+mineHr.gapDays+' days.</div>' +
+          '<div class="alert-banner-actions"><button class="btn btn-ghost btn-sm alert-dismiss-btn" data-dismiss-key="'+escapeHtml(hkey)+'">Not now</button></div>' +
+        '</div>';
+      }
+    } else if(profile.type === 'parent'){
+      var childrenWithOverdue = Object.keys(overdueMap).filter(function(c){ return overdueMap[c].length>0; });
+      var okey2 = 'overdue:parent';
+      if(childrenWithOverdue.length && !isAlertDismissed(okey2)){
+        var oparts = childrenWithOverdue.map(function(c){ return escapeHtml(c)+' ('+overdueMap[c].length+')'; });
+        html += '<div class="alert-banner alert-overdue" data-alert-key="'+escapeHtml(okey2)+'">' +
+          '<div class="alert-banner-text"><strong>Overdue tasks</strong><br>'+oparts.join(' &middot; ')+'</div>' +
+          '<div class="alert-banner-actions"><button class="btn btn-ghost btn-sm alert-dismiss-btn" data-dismiss-key="'+escapeHtml(okey2)+'">Not now</button></div>' +
+        '</div>';
+      }
+      var hkey2 = 'homerevision:parent';
+      if(hrAlerts.length && !isAlertDismissed(hkey2)){
+        var hparts = hrAlerts.map(function(a){ return escapeHtml(a.child)+' ('+a.gapDays+'d)'; });
+        html += '<div class="alert-banner alert-homerevision" data-alert-key="'+escapeHtml(hkey2)+'">' +
+          '<div class="alert-banner-text"><strong>Home revision</strong><br>'+hparts.join(' &middot; ')+' haven\'t completed it recently.</div>' +
+          '<div class="alert-banner-actions"><button class="btn btn-ghost btn-sm alert-dismiss-btn" data-dismiss-key="'+escapeHtml(hkey2)+'">Not now</button></div>' +
+        '</div>';
+      }
+    }
+    return html;
+  }
+
+  function bindTaskAlertBanners(){
+    document.querySelectorAll('.alert-dismiss-btn').forEach(function(btn){
+      btn.onclick = function(){
+        setAlertDismissed(btn.getAttribute('data-dismiss-key'));
+        render();
+      };
+    });
   }
 
   function maybeGrowRecurringSeries(){
@@ -731,6 +851,11 @@
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   }
 
+  function dateStrFromTs(ts){
+    var d = new Date(ts);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
   function nextDeadline(dateStr, freq){
     var d = new Date(dateStr+'T00:00:00');
     switch(freq){
@@ -877,9 +1002,10 @@
     else if(activeTab==='history') screenHtml = renderHistoryPane();
     else if(activeTab==='reports') screenHtml = renderReportsPane();
     else screenHtml = renderManagePane();
-    app.innerHTML = renderStatusBar() + renderBackupBanner() + renderTopTabs() + screenHtml;
+    app.innerHTML = renderStatusBar() + renderTaskAlertBanners() + renderBackupBanner() + renderTopTabs() + screenHtml;
     setSyncIndicator(true);
     bindBackupBannerEvents();
+    bindTaskAlertBanners();
 
     document.getElementById('btn-switch-profile').onclick = function(){
       profile = null;
